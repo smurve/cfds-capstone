@@ -1,0 +1,71 @@
+\documentclass{article}
+\title{%
+	Inertia and Predictability \\
+	of Fincancial Time Series Data\\
+	\vskip 0.1in
+	\large A Somewhat Educational Excursion
+	\vskip 0.2in
+}
+
+\author{Wolfgang Giersche, Zühlke Engineering}
+\begin{document}
+
+	\pagenumbering{gobble}
+	\maketitle
+	\newpage
+
+	\begin{abstract}
+		Whether or not stock prices are predictable, remains an open discussion between technical and fundamental analysts. More recently, the field of behavioural finance has brought new reasoning in favour of predictability.
+		If it is not the price itself that can be predicted then it may be human bias. And human bias could even lead to some reproducibly exploitable behaviour. \\
+		In classical mechanics, the single concept that leads to predictable events is \emph{inertia}. Lacking inertia, the smallest force would accelerate every particle instantly. But since inertia exists, changes in the velocity of a particle with non-zero mass are smooth. A car that moves now, will certainly be moving within the next couple of seconds. Inertia is also the very concept that leads to oscillations. In this work, I construct a synthetic market with investors modelled in a way that they exhibit a preference for upwards-trending stocks, which essentially leads to some kind of \emph{herd effect} that can be interpreted as \emph{inertia}. 
+		\\
+		I then let an ANN-driven agent learn to construct a portfolio from the market's time series data and some popular signals. For the neural network, I will choose from the standard architectures, namely convolutional networks, simple feed-forward networks and LSTMs~\cite{LSTM97}. The most suitable Reinforcement Learning algorithm appears to be DDPG - \emph{deep deterministic policy gradient}~\cite{Lillicrap2015}, developed by Lilicrap et. al at Google Deepmind for continuous control experiments in the area of robotics. 
+		\\
+		I choose the optimization target from a variety of utility functions like e.g. the Sortino ratio of the portfolio. In the spirit of \emph{reproducible research}, I will provide all source code and generated market data in a github project. All hyper-parameters of my experiments will be recorded using mlflow. Model training will be performed using Tensorflow 2.0, which is available in beta at the time of this writing. \\
+		I hope to show that if there is some concept of inertia observable in the time series, the ANN-driven agent will in average learn to exploit the associated predictability to outperform the market over time. Whether or not the same agent will be able to achieve superior real-life returns is not subject of this paper.
+	\end{abstract}
+
+
+	\pagenumbering{arabic}
+	\section{Introduction}
+	\section{Related Work}
+		In~\cite{Jiang2017}, the authors claim they consistently achieve ssuperior results in backtests.
+	
+	\section{The Machine Learning Setup}
+
+	\subsection{Choosing the Neural Network}	
+	\subsection{Deep Deterministic Policy Gradient}
+	\subsection{The Optimization Target}
+	
+	\begin{equation}
+		\nabla_\theta \mathcal{J} =
+	\end{equation}
+	
+	\section{The Synthetic Market}
+	\subsection{The Case for Synthetic Data}
+	Using synthetic data with an explicitly modelled prior, such as the \emph{expected perceived value} of the asset, will create a situation where the success of the learning process depends only on the algorithm itself, not on question whether the time series data is predictable at all. We know it is to some extent predictable because we made it so. 
+	\subsection{Market Mechanics}
+	We model the market as a market maker that offers to trade in stock with unlimited liquidity at a given price, applying a bid-ask spread. When there was a \emph{Bid} or \emph{Ask} at a certain price, the new center price shifts towards that deal price. The momentum investor agents always trade at the respective Bid or Ask price.
+	\subsection{Momentum Investors}
+	Momentum investors are agents holding a particular portfolio and given sufficient cash, buy new stock when their indicator function is positive - and sell stock when the indicator function is negative. The indicator function mimics reasoning with a tendency to buy below the expected perceived value and sell above (overvalued stock). This tendency is balanced by the momentum tendency to buy rising stocks and sell falling ones. Obviously this leads to overshooting reactions and oscillations. 
+	\subsection{Portfolio Construction}
+	
+	\section{Formulating the RL Problem}
+	
+	\section{Training}
+	
+		
+	\section{Results}
+	
+	\begin{equation}\label{eq:sigma}
+	\sigma^2 =\frac{1}{N-1} \cdot \sum_{i=0}^N (x_i - \bar{x}) ^2
+	\end{equation}
+	In eq. (\ref{eq:sigma}), we have a nice measure for risk, uhmm - really?
+
+	\bibliographystyle{plain}
+\bibliography{MyBiblio}
+
+
+
+
+\end{document}

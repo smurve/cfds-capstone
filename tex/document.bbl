@@ -1,0 +1,20 @@
+\begin{thebibliography}{1}
+
+\bibitem{LSTM97}
+Sepp Hochreiter and Jürgen Schmidhuber.
+\newblock Long short-term memory.
+\newblock {\em Neural Computation}, 9(8):1735--1780, 1997.
+
+\bibitem{Jiang2017}
+Zhengyao Jiang, Dixing Xu, and Jinjun Liang.
+\newblock {A Deep Reinforcement Learning Framework for the Financial Portfolio
+  Management Problem}.
+\newblock pages 1--31, 2017.
+
+\bibitem{Lillicrap2015}
+Timothy~P. Lillicrap, Jonathan~J. Hunt, Alexander Pritzel, Nicolas Heess, Tom
+  Erez, Yuval Tassa, David Silver, and Daan Wierstra.
+\newblock {Continuous control with deep reinforcement learning}.
+\newblock sep 2015.
+
+\end{thebibliography}
