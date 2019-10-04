@@ -4,14 +4,17 @@ import numpy as np
 # average along the axis using sections of a given length
 def avg_over_axis(orig, axis, section):
     """
-    calculates the piece-wise averages along an axis. Essentially an average pooling
-    along a single axis.
+    calculates the piece-wise averages along an axis. Essentially an
+    average pooling along a single axis.
 
-    Example: avg_over_axis([[1,2,3,4,5,6], [3,4,5,6,7,8]], 0, 2) == [2,3,4,5,6,7]
+    Example: avg_over_axis([[1,2,3,4,5,6], [3,4,5,6,7,8]], 0, 2)
+             == [2,3,4,5,6,7]
     :param orig: an numpy array
     :param axis: axis to average along
-    :param section: number of values to average amongst. Must divide orig.shape[axis]
-    :return: a numpy array with 'axis' reduced to by averaging every 'section' values.
+    :param section: number of values to average amongst.
+        Must divide orig.shape[axis]
+    :return: a numpy array with 'axis' reduced to by averaging
+        every 'section' values.
     """
     shape = np.shape(orig)
     dim_a = shape[axis]
