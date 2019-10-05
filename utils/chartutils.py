@@ -1,10 +1,11 @@
 import matplotlib.pyplot as plt
 
+
 def plot_many(rows, cols, width, height, data=None, titles=None, xlim=None):
-    fig, plots = plt.subplots(rows,cols)
+    fig, plots = plt.subplots(rows, cols)
     fig.set_figheight(height)
-    fig.set_figwidth(width)  
-    
+    fig.set_figwidth(width)
+
     if data is not None:
         for p, d in zip(plots, data):
             for c in d:
