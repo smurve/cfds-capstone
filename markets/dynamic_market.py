@@ -33,7 +33,7 @@ class Segment(Trending):
     def __init__(self, name, sentiments):
         super(Segment, self).__init__(name, sentiments)
 
-        
+
 class Stock(Trending):
     def __init__(self, name, psi0, e_cagr, sentiments, max_effect,
                  noise, segments=None, markets=None, days_per_year=256):
@@ -50,32 +50,32 @@ class Stock(Trending):
             segments = {}
         self.days_per_year = days_per_year
         self.psi0 = psi0
-        self.nu = np.log(1+e_cagr)
+        self.nu = np.log(1 + e_cagr)
         self.max_effect = max_effect
         self.noise = noise
         self.segments = segments
         self.markets = markets
-        
+
     def value(self, t):
         return np.random.normal(self.psi(t), self.noise)
-        
+
     def psi(self, t):
         """
         the total sentiment score from all geomarket exposures and segments
         """
-        
+
         def sentiment_effect(x):
             k = self.max_effect
-            delta = np.log(k-1)
+            delta = np.log(k - 1)
             return k / (1 + np.exp(-x + delta))
 
         sentiment = self.phi(t) + (
             np.sum([s[1] * s[0].phi(t) for s in self.segments.items()]) +
             np.sum([m[1] * m[0].phi(t) for m in self.markets.items()]))
-        
-        return self.psi0 * np.exp(t/self.days_per_year*self.nu) * sentiment_effect(sentiment)
-        
-        
+
+        return self.psi0 * np.exp(t / self.days_per_year * self.nu) * sentiment_effect(sentiment)
+
+
 class Order:
     def __init__(self, tx, other_party, ticker, amount, price):
         self.order_id = uuid.uuid4().hex
@@ -84,58 +84,58 @@ class Order:
         self.ticker = ticker
         self.amount = amount
         self.price = price
-        
+
     def __repr__(self):
         return (self.tx + ": " + str(self.amount) + " " + self.ticker
                 + " for " + str(self.price))
 
-    
+
 class Bid(Order):
     def __init__(self, other_party, ticker, amount, price):
         super().__init__('bid', other_party, ticker, amount, price)
-        
-        
+
+
 class Ask(Order):
     def __init__(self, other_party, ticker, amount, price):
         super().__init__('ask', other_party, ticker, amount, price)
 
-        
+
 class OrderStatus:
-    
+
     DEFERED = 'DEFERED'
     EXECUTED = 'EXECUTED'
     IGNORED = 'IGNORED'
-    
+
     def __init__(self, order_id, status):
         self.order_id = order_id
         self.status = status
-        
+
     def is_defered(self):
         return self.status == OrderStatus.DEFERED
-    
+
     def is_executed(self):
         return self.status == OrderStatus.EXECUTED
-    
+
     def is_ignored(self):
         return self.status == OrderStatus.IGNORED
-        
-        
+
+
 class OrderExecuted(OrderStatus):
     def __init__(self, order, price):
         super().__init__(order.order_id, OrderStatus.EXECUTED)
         self.tx_price = price
 
-        
+
 class OrderIgnored(OrderStatus):
     def __init__(self, order):
         super().__init__(order.order_id, OrderStatus.IGNORED)
-        
-        
+
+
 class OrderDefered(OrderStatus):
     def __init__(self, order):
         super().__init__(order.order_id, OrderStatus.DEFERED)
 
-    
+
 class Market:
     def __init__(self, bid_ask, stocks=None):
         self.t = 0
@@ -145,11 +145,11 @@ class Market:
             'bid': {}
         }
         self.prices = {}
-        
+
         self.spread = bid_ask
         self.history = {}
         self.daily = {}
-        
+
         self.stocks = {}
 
         if stocks:
@@ -163,7 +163,7 @@ class Market:
                 self.daily[stock.name] = []
                 self.history[stock.name] = []
                 self.history[stock.name].append([p, p, p, p])
-        
+
     def open(self):
         if self.is_open:
             print("Already open.")
@@ -173,7 +173,7 @@ class Market:
         for _ in self.prices:
             # self.history['open'][p] = market.prices[p] # yesterday's prices
             self.daily = {ticker: [] for ticker in self.prices}
-            
+
     def close(self):
         if not self.is_open:
             print("Already closed.")
@@ -197,14 +197,14 @@ class Market:
         return round(self.prices[ticker] + delta, 3)
 
     def execute(self, order, defer=True, reprocessing=False):
-                    
+
         if not self.is_open:
             print("Market is closed.")
             return
 
         # bid-ask spread
         tx_price = self.tx_price(order.ticker, order.tx)
-        
+
         # If we have an immediate match
         if (order.price >= tx_price and order.tx == 'bid') or (order.price <= tx_price and order.tx == 'ask'):
 
@@ -217,16 +217,16 @@ class Market:
             if not reprocessing:
                 self.prices[order.ticker] = tx_price
                 self.daily[order.ticker].append(tx_price)
-                
+
             self.maybe_process_defered('ask' if order.tx == 'bid' else 'bid', order.ticker)
 
             return OrderExecuted(order, tx_price)
-        
+
         else:
             if defer:
                 self.orders[order.tx][order.ticker][order.order_id] = order
                 return OrderDefered(order)
-                    
+
         return OrderIgnored(order)
 
     def remove_order(self, order):
@@ -250,26 +250,26 @@ class Market:
 
     def value_for(self, ticker):
         return self.stocks[ticker].value(self.t)
-    
+
     def history_for(self, ticker):
         return list(self.history[ticker])
-    
-    
+
+
 class Investor:
     def __init__(self, name, cash, portfolio):
         self.cash = cash
         self.name = name
         self.portfolio = portfolio
-    
+
     def sell(self, symbol, n, p):
         self.cash = round(self.cash + n * p, 3)
         pos = self.portfolio[symbol]
         self.portfolio[symbol] = pos - n
-        
+
     def buy(self, symbol, n, p):
         self.cash = round(self.cash - n * p, 3)
         pos = self.portfolio[symbol]
         self.portfolio[symbol] = pos + n
-       
+
     def __repr__(self):
         return self.name + " (cash: " + str(self.cash) + ", " + str(self.portfolio) + ")"
