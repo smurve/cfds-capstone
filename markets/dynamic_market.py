@@ -145,11 +145,11 @@ class Market:
             'bid': {}
         }
         self.prices = {}
-
+        
         self.spread = bid_ask
         self.history = {}
         self.daily = {}
-
+        
         self.stocks = {}
 
         if stocks:
@@ -163,7 +163,7 @@ class Market:
                 self.daily[stock.name] = []
                 self.history[stock.name] = []
                 self.history[stock.name].append([p, p, p, p])
-
+        
     def open(self):
         if self.is_open:
             print("Already open.")
@@ -171,9 +171,8 @@ class Market:
         self.is_open = True
         self.t += 1
         for _ in self.prices:
-            # self.history['open'][p] = market.prices[p] # yesterday's prices
             self.daily = {ticker: [] for ticker in self.prices}
-
+            
     def close(self):
         if not self.is_open:
             print("Already closed.")
@@ -197,17 +196,16 @@ class Market:
         return round(self.prices[ticker] + delta, 3)
 
     def execute(self, order, defer=True, reprocessing=False):
-
+                    
         if not self.is_open:
             print("Market is closed.")
             return
 
         # bid-ask spread
         tx_price = self.tx_price(order.ticker, order.tx)
-
+        
         # If we have an immediate match
         if (order.price >= tx_price and order.tx == 'bid') or (order.price <= tx_price and order.tx == 'ask'):
-
             if order.tx == 'bid':
                 order.other_party.buy(order.ticker, order.amount, tx_price)
             else:
@@ -217,16 +215,16 @@ class Market:
             if not reprocessing:
                 self.prices[order.ticker] = tx_price
                 self.daily[order.ticker].append(tx_price)
-
-            self.maybe_process_defered('ask' if order.tx == 'bid' else 'bid', order.ticker)
+                
+            _ = self.maybe_process_defered('ask' if order.tx == 'bid' else 'bid', order.ticker)
 
             return OrderExecuted(order, tx_price)
-
+        
         else:
             if defer:
                 self.orders[order.tx][order.ticker][order.order_id] = order
                 return OrderDefered(order)
-
+                    
         return OrderIgnored(order)
 
     def remove_order(self, order):
@@ -237,7 +235,6 @@ class Market:
         order_ids = list(self.orders[tx][ticker].keys())
         last_status = None
         for order_id in order_ids:
-
             order = self.orders[tx][ticker][order_id]
             status = self.execute(order, defer=True, reprocessing=True)
             last_status = status
@@ -250,10 +247,10 @@ class Market:
 
     def value_for(self, ticker):
         return self.stocks[ticker].value(self.t)
-
+    
     def history_for(self, ticker):
         return list(self.history[ticker])
-
+    
 
 class Investor:
     def __init__(self, name, cash, portfolio):
@@ -273,3 +270,39 @@ class Investor:
 
     def __repr__(self):
         return self.name + " (cash: " + str(self.cash) + ", " + str(self.portfolio) + ")"
+
+    
+class MomentumInvestor(Investor):
+    """
+    A momentum investor who has some reasoning wrt true value
+    """
+    def __init__(self, name, wealth, portfolio, w_value=0.5, w_momentum=0.5, trend_span=20):
+        self.w_value = w_value
+        self.w_momentum = w_momentum
+        self.trend_span = trend_span
+        self.history = []
+        super().__init__(name, wealth, portfolio)
+        
+    def act(self, market):
+        for ticker in market.prices:
+            self.act_on(market, ticker)
+        
+    def act_on(self, market, ticker):
+        _, ask = market.price_for(ticker)
+        h = market.history_for(ticker)
+        h = h[-self.trend_span:]
+        bid_price, ask_price = market.price_for(ticker)
+        if len(h) > 0:
+            # comparing opening prices
+            n_tx = 10
+            momentum = np.log(h[-1][0] / h[0][0])
+            value_diff = np.log(market.value_for(ticker) / bid_price)
+            incentive = value_diff * self.w_value + momentum * self.w_momentum
+            incentive = np.random.normal(incentive, .2)
+            self.history.append([value_diff, momentum, incentive])
+            if incentive > 0:
+                if self.cash > n_tx * bid_price + 1000.0:
+                    market.execute(Bid(self, ticker, n_tx, bid_price))
+            else:
+                if self.portfolio[ticker] >= n_tx:
+                    market.execute(Ask(self, ticker, n_tx, ask_price))
