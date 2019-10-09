@@ -179,7 +179,7 @@ class Market:
             return
         self.is_open = False
         for ticker in self.daily:
-            if self.daily[ticker]:
+            if not self.daily[ticker]:
                 # use the close of the last history entry
                 p = self.history[ticker][-1][1]
                 self.history[ticker].append([p, p, p, p])
