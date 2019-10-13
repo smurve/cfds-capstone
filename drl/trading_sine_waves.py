@@ -1,20 +1,21 @@
 import numpy as np
-from drl.trading_model import StockMarket
 
 
-class SINX_COSX(StockMarket):
+class SINX_COSX:
     """
     A super-silly, super-simple handcrafted market
     """
     def __init__(self, fee):
-        super().__init__(fee)
+        self.fee = fee
         self.n_securities = 2
-        
-    def sinx(self, t):
+
+    @staticmethod
+    def sinx(t):
         x = t + 3 * np.sin(t / 5.5)
         return (10 + np.sin(x / 10) + np.sin(x / 33) + np.sin(x / 100)).astype(np.float32)
 
-    def cosx(self, t):
+    @staticmethod
+    def cosx(t):
         x = 0.7 * t + 2 * np.cos(t / 5.5)
         return (12 + np.cos(x / 10) - np.cos(x / 23) + np.cos(x / 100)).astype(np.float32)
           

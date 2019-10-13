@@ -1,6 +1,7 @@
 import numpy as np
 from markets.dynamic_market import Ask, Bid, Investor, MomentumInvestor
 
+
 class TradingEnvironment:
     """
     This class represents the RL environment of a single investor. It comprises of a
@@ -13,8 +14,9 @@ class TradingEnvironment:
         self.market = market
         self.other_investors = make_investors(config['num_investors'], holdings.copy())
         self.tx_cost = tx_cost
-        
-    def create_investor(self, holdings):
+
+    @staticmethod
+    def create_investor(holdings):
         cash = holdings['cash']
         del(holdings['cash'])
         return Investor("WB", cash, holdings)        
@@ -30,16 +32,15 @@ class TradingEnvironment:
         for ticker in self.investor.portfolio:
             size = self.investor.portfolio[ticker]
             wealth += size * self.market.price_for(ticker)[1]
-        return round(wealth,3)
+        return round(wealth, 3)
     
     def normalized_holdings(self):
-        values = {}
-        values['cash'] = self.investor.cash
+        values = {'cash': self.investor.cash}
         holdings = self.investor.portfolio
         for ticker in holdings:
             values[ticker] = holdings[ticker] * self.market.price_for(ticker)[1]
         w = self.total_wealth()
-        return np.array([v/w for _,v in sorted(values.items())])
+        return np.array([v / w for _, v in sorted(values.items())])
     
     def act(self, new_weights):
         """
@@ -50,6 +51,8 @@ class TradingEnvironment:
         self.market.open()
         
         orders = self.create_orders(new_weights)
+
+        total_tx_volume = 0
         for order in orders:
             self.market.execute(order)
 
@@ -64,15 +67,15 @@ class TradingEnvironment:
         
         return self.state_rep(former_wealth)
     
-    def state_rep(self, former_wealth ):
+    def state_rep(self, former_wealth):
         h = self.market.history
-        returns = [ np.log(h[key][-1][1] / h[key][-2][1])
-                    for key in h]
+        returns = [np.log(h[key][-1][1] / h[key][-2][1])
+                   for key in h]
         returns = returns / np.sum(np.abs(returns))
         observations = np.hstack([self.normalized_holdings(), returns])
-        return (observations, np.log(self.total_wealth()/former_wealth))
+        return observations, np.log(self.total_wealth() / former_wealth)
     
-    def create_orders (self, new_weights):
+    def create_orders(self, new_weights):
         """
         Create an order book from the target portfolio weights
         new_weights: list of normalized weights of the holdings
@@ -85,21 +88,18 @@ class TradingEnvironment:
         prices = np.array([self.market.price_for(t) for t in tickers])
 
         # identify the correct prices for bid and ask transactions
-        bid_asks = [p[(v<0).astype(int)] for v,p in zip(vols, prices)]
+        bid_asks = [p[(v < 0).astype(int)] for v, p in zip(vols, prices)]
 
         orders = []
         for v, ba, t in zip(vols, bid_asks, tickers):
-            amt = np.abs((v/ba).astype(int))
-            B_or_A = Bid if v>0 else Ask
+            amt = np.abs((v / ba).astype(int))
+            b_or_a = Bid if v > 0 else Ask
             if v != 0:
-                orders.append(B_or_A(price=ba, amount=amt, 
-                                  ticker=t, other_party=self.investor))
+                orders.append(b_or_a(price=ba, amount=amt,
+                                     ticker=t, other_party=self.investor))
         return orders
     
     
-def new_market(): 
-    return Market(stocks=[aapl, msft, tsla], bid_ask=0.1)
-
 def make_investors(num_investors, portfolio=None):
     from copy import deepcopy
     investors = []
