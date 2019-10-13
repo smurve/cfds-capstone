@@ -3,6 +3,7 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/.ipynb_checkpoints" />
+      <excludeFolder url="file://$MODULE_DIR$/drl/.ipynb_checkpoints" />
       <excludeFolder url="file://$MODULE_DIR$/markets/.ipynb_checkpoints" />
       <excludeFolder url="file://$MODULE_DIR$/utils/.ipynb_checkpoints" />
     </content>

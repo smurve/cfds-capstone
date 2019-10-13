@@ -19,3 +19,19 @@ activate it
 and install the requirements
 
 ```pip install -r requirements.txt``` 
+
+Then, you can start juypter-lab:
+
+```jupyter lab``` 
+
+When you want to run jupyter-lab such that you can connect to it remotely, activate the provided configuration file that tells jupyter to support that:
+
+```mv jupyter_notebook_config.py.disabled jupyter_notebook_config.py```
+
+and then 
+
+```jupyter lab``` 
+
+All Jupyter notebooks are pretty much self-explanatory. Give it a go!
+
+## Happy Deep Reinforcement Learning! 
