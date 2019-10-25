@@ -3,7 +3,7 @@ from markets.dynamic_market import Market, Stock, Segment, GeoMarket
 from markets.environment import TradingEnvironment
 
 
-def rnd_sentiments(s_max=1, s_min=10, n_quarters=16):
+def rnd_sentiments(s_max=1, s_min=-10, n_quarters=16):
     offset = np.random.randint(64)  # reporting day within the quarter
     s_c = 0
     q = 64  # a quarter
