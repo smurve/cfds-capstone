@@ -99,8 +99,8 @@ class MarketFromData:
         self.n_securities = np.shape(self.data)[0]
         self.fee = fee
         length = np.shape(self.data)[1]
-        if length != duration + nh:
-            raise ValueError("record length not sum of duration and history.")
+        if length < duration + nh:
+            raise ValueError("record length smaller than sum of duration and history.")
         # Need one more for the log returns
         np.append(self.data, self.data[:, -1:], axis=-1)
                     

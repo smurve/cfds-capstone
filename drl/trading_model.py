@@ -136,7 +136,7 @@ class EnvironmentFactory:
         
         index = index or np.random.randint(len(self.data))
         single_data = np.array([self.data[index][ticker]['price'] 
-                                for ticker in self.tickers()])
+                                for ticker in self.tickers()[index]])
 
         market = MarketFromData(single_data, self.duration, self.n_hist, self.fee)
 
@@ -151,7 +151,10 @@ class EnvironmentFactory:
         return env
     
     def tickers(self):
-        return list(self.data[0].keys())
+        all_tickers = []
+        for ds in self.data:
+            all_tickers.append(list(ds.keys()))
+        return all_tickers
     
     def prices_for(self, ticker, index):
         return self.data[index][ticker]['price']
