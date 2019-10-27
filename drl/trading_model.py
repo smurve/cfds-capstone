@@ -1,5 +1,7 @@
 import numpy as np
-
+import pickle
+import glob
+from markets.stocks_model import MarketFromData
 
 class Observation:
     def __init__(self, s, a, r, s1):
@@ -53,7 +55,7 @@ class MarketEnvironment(Environment):
         mh = self.return_scale * mh.reshape(1, self.n_history, self.market.n_securities, 1)
         pw = self.normalized_holdings()
         pw = self.weight_scale * pw.reshape(1, self.n_portfolio)
-        return mh, pw
+        return mh.astype(np.float32), pw.astype(np.float32)
 
     def normalized_holdings(self):
         """
@@ -100,3 +102,56 @@ class MarketEnvironment(Environment):
     def __repr__(self):
         return "wealth: %s, portfolio: %s" % (
             np.round(self.wealth(), 2), np.round(self.portfolio, 2))
+
+    
+class EnvironmentFactory:
+
+    def __init__(self, pattern, duration, n_hist, portfolio, 
+                 return_scale, weight_scale, fee):
+        self.duration = duration
+        self.data = self.read_files(pattern)
+        self.n_hist = n_hist
+        self.portfolio = portfolio
+        self.return_scale = return_scale
+        self.weight_scale = weight_scale
+        self.fee = fee
+        
+    @staticmethod
+    def read_files(pattern):
+        data = []
+        files = glob.glob(pattern)
+        assert files != [], "No such file: %s" % pattern
+        for file in files:
+            with open(file, 'rb') as file:
+                r=0
+                while True:
+                    try: 
+                        data.append(pickle.load(file))
+                        r+=1
+                    except EOFError:
+                        break;
+        return data
+                        
+    def new_env(self, index=None):
+        
+        index = index or np.random.randint(len(self.data))
+        single_data = np.array([self.data[index][ticker]['price'] 
+                                for ticker in self.tickers()])
+
+        market = MarketFromData(single_data, self.duration, self.n_hist, self.fee)
+
+        env = MarketEnvironment(
+            market=market, 
+            n_hist=self.n_hist, 
+            t_init=0, 
+            portfolio=self.portfolio,     
+            return_scale = self.return_scale,
+            weight_scale = self.weight_scale
+        )
+        return env
+    
+    def tickers(self):
+        return list(self.data[0].keys())
+    
+    def prices_for(self, ticker, index):
+        return self.data[index][ticker]['price']

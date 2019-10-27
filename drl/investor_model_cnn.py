@@ -3,13 +3,15 @@ import tensorflow.keras as tk
 import tensorflow.keras.layers as tkl
 
 
-def new_actor(n_market, n_history, n_filters, n_portfolio, layers, activation='elu'):
+def new_actor(n_market, n_history, n_filters, n_portfolio, 
+              layers, n_kernel=7, activation='elu'):
+    
     inp_mh = tk.Input(shape=[n_history, n_market, 1], dtype=tf.float32)
     inp_pw = tk.Input(shape=[n_portfolio], dtype=tf.float32)
 
     conv = tkl.Conv2D(activation='tanh', filters=n_filters, padding='valid',
-                      kernel_size=[n_history, 1])
-    reshape = tkl.Reshape([n_market * n_filters])
+                      kernel_size=[n_kernel, 1])
+    reshape = tkl.Reshape([n_market * (n_history - n_kernel + 1) * n_filters])
     concat = tkl.Concatenate(axis=-1)
     out = concat([reshape(conv(inp_mh)), inp_pw])
 
@@ -25,14 +27,16 @@ def new_actor(n_market, n_history, n_filters, n_portfolio, layers, activation='e
     return model
 
 
-def new_critic(n_market, n_history, n_filters, n_portfolio, layers, activation='elu'):   
+def new_critic(n_market, n_history, n_filters, n_portfolio, 
+               layers, n_kernel=7, activation='elu'):
+    
     inp_mh = tk.Input(shape=[n_history, n_market, 1], dtype=tf.float32)
     inp_pw = tk.Input(shape=[n_portfolio], dtype=tf.float32)    
     inp_pa = tk.Input(shape=[n_portfolio], dtype=tf.float32)    
     
     conv = tkl.Conv2D(activation='tanh', filters=n_filters, padding='valid',
-                      kernel_size=[n_history, 1])
-    reshape = tkl.Reshape([n_market * n_filters])
+                      kernel_size=[n_kernel, 1])
+    reshape = tkl.Reshape([n_market * (n_history - n_kernel + 1) * n_filters])
     concat = tkl.Concatenate(axis=-1)
     out = concat([reshape(conv(inp_mh)), inp_pw, inp_pa])
 

@@ -104,6 +104,8 @@ def trading_trajectory(actor, env, noise, duration, hold):
 
         # observe
         mh, pw = env.state()
+        mh = mh.astype(np.float32)
+        pw = pw.astype(np.float32)
         mhs = vstack(mhs, mh)
         pws = vstack(pws, pw)
 
@@ -126,4 +128,9 @@ def trading_trajectory(actor, env, noise, duration, hold):
         mh1s = vstack(mh1s, mh1)
         pw1s = vstack(pw1s, pw1)
 
-    return mhs, pws, acs, rs, mh1s, pw1s
+    return (mhs.astype(np.float32), 
+            pws.astype(np.float32), 
+            acs.astype(np.float32), 
+            rs.astype(np.float32), 
+            mh1s.astype(np.float32), 
+            pw1s.astype(np.float32))
