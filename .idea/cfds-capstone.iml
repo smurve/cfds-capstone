@@ -7,13 +7,10 @@
       <excludeFolder url="file://$MODULE_DIR$/markets/.ipynb_checkpoints" />
       <excludeFolder url="file://$MODULE_DIR$/utils/.ipynb_checkpoints" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.7 (workspace)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Pipenv (cfds-capstone)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">
     <option name="renderExternalDocumentation" value="true" />
-  </component>
-  <component name="TestRunnerService">
-    <option name="PROJECT_TEST_RUNNER" value="Unittests" />
   </component>
 </module>
