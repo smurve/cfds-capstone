@@ -28,10 +28,16 @@ class GeoMarket(Trending):
     def __init__(self, name, sentiments):
         super(GeoMarket, self).__init__(name, sentiments)
 
+    def __repr__(self):
+        return self.name
+
 
 class Segment(Trending):
     def __init__(self, name, sentiments):
         super(Segment, self).__init__(name, sentiments)
+
+    def __repr__(self):
+        return self.name
 
 
 class Stock(Trending):
@@ -55,6 +61,9 @@ class Stock(Trending):
         self.noise = noise
         self.segments = segments
         self.markets = markets
+
+    def __repr__(self):
+        return self.name
 
     def value(self, t):
         return np.random.normal(self.psi(t), self.noise)
@@ -137,7 +146,8 @@ class OrderDefered(OrderStatus):
 
 
 class Market:
-    def __init__(self, bid_ask, stocks=None):
+    def __init__(self, bid_ask, stocks=None, name: str = 'no name', ):
+        self.name = name
         self.t = 0
         self.is_open = False
         self.orders = {
