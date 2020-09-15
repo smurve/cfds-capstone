@@ -107,23 +107,27 @@ class MarketMaker(AbstractMarketMaker):
                 self.lowest_ask[symbol] = self.ask[symbol][new_low][0]
                 return bid, False
         else:
-            pass
+            self.register_bid(symbol, bid)
 
         return None, True
 
     def remove_ask(self, order: Order):
         symbol = order.symbol
         del self.ask[symbol][order.price][0]
+        if len(self.ask[symbol][order.price]) == 0:
+            del self.ask[symbol][order.price]
 
     def remove_bid(self, order: Order):
         symbol = order.symbol
         del self.bid[symbol][order.price][0]
+        if len(self.bid[symbol][order.price]) == 0:
+            del self.bid[symbol][order.price]
 
     def try_execute_ask(self, ask: Order) -> Tuple[Optional[Order], bool]:
         symbol = ask.symbol
         bid = self.highest_bid[symbol]
         if ask.price <= bid.price:
-            tx_price = bid.price
+            tx_price = ask.price
             tx_volume = min(bid.amount, ask.amount)
             ask.amount -= tx_volume
             bid.amount -= tx_volume
@@ -136,12 +140,13 @@ class MarketMaker(AbstractMarketMaker):
                 return None, True
 
             if bid.amount == 0:
-                # the lowest ask is exhausted -> determine new low_ask
-                new_high = list(self.bid[symbol].keys())[-1]
-                self.highest_bid[symbol] = self.bid[symbol][new_high][-1]
+                self.remove_bid(bid)
+                # the highest bid is exhausted -> determine new high_bid
+                new_high = list(self.bid[symbol].keys())[0]
+                self.highest_bid[symbol] = self.bid[symbol][new_high][0]
                 return ask, False
         else:
-            pass
+            self.register_ask(symbol, ask)
 
         return None, True
 

@@ -97,7 +97,7 @@ class MarketMakerTest(TestCase):
         self.assertEqual(mm.participants[buyer]['TSMC'], 1000 + sell.amount)
         self.assertEqual(mm.participants[seller]['TSMC'], 1000 - sell.amount)
 
-    def test_multi_match(self):
+    def test_multi_match_buy(self):
         buyer, seller1, seller2 = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
         mm = self.given_market_maker()
         mm.register_participant(buyer, {'TSMC': 1000, 'CASH': 200_000})
@@ -122,8 +122,83 @@ class MarketMakerTest(TestCase):
         symbol = buy.symbol
         mm.submit_orders(symbol, [buy])
 
-        # sell0 is unchanged
-        # sell1 is gone, sell2 is gone, there are 50 more to buy
-        # buyer has 23_000 Dollar off.
+        # seller2 sold her 60 shares for 100$ each
+        self.assertEqual(mm.participants[seller2], {
+            'TSMC': 8000 - 60,
+            'CASH': 200_000 + 60 * 100})
 
-        pass
+        # seller1 sold 50 for 100 and 90 for 120
+        self.assertEqual(mm.participants[seller1], {
+            'TSMC': 1000 - 50 - 90,
+            'CASH': 200_000 + 50 * 100 + 90 * 120})
+
+        # buyer bought 110 for 100 and the remining 90 for 120
+        self.assertEqual(mm.participants[buyer], {
+            'TSMC': 1000 + 200,
+            'CASH': 200_000 - 110 * 100 - 90 * 120})
+
+        buy = self.given_order(order_type=OrderType.BID, other_party=buyer,
+                               price=130, amount=50)
+        mm.submit_orders(symbol, [buy])
+
+        # buyer bought another 10 for 120
+        # buyer bought 110 for 100 and the remining 90 for 120
+        self.assertEqual(mm.participants[buyer], {
+            'TSMC': 1000 + 200 + 10,
+            'CASH': 200_000 - 110 * 100 - 90 * 120 - 10 * 120})
+
+        # buyer still bidding 130 for the remaining 30
+        self.assertEqual(mm.bid[symbol][130][0].amount, 40)
+
+    def test_multi_match_sell(self):
+        seller, buyer1, buyer2 = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        mm = self.given_market_maker()
+        mm.register_participant(seller, {'TSMC': 1000, 'CASH': 200_000})
+        mm.register_participant(buyer1, {'TSMC': 1000, 'CASH': 200_000})
+        mm.register_participant(buyer2, {'TSMC': 1000, 'CASH': 200_000})
+
+        buy0 = self.given_order(order_type=OrderType.BID, other_party=buyer1,
+                                price=100, amount=100)
+        buy1 = self.given_order(order_type=OrderType.BID, other_party=buyer1,
+                                price=120, amount=100)
+        buy2 = self.given_order(order_type=OrderType.BID, other_party=buyer1,
+                                price=140, amount=50)
+        buy3 = self.given_order(order_type=OrderType.BID, other_party=buyer2,
+                                price=140, amount=60)
+
+        symbol = 'TSMC'
+        mm.submit_orders(symbol, [buy3, buy2, buy1, buy0])
+
+        self.assertEqual(3, len(mm.bid[symbol]))
+
+        sell = self.given_order(order_type=OrderType.ASK, other_party=seller,
+                                price=110, amount=200)
+
+        mm.submit_orders(symbol, [sell])
+
+        # buyer2 bought her 60 shares for 140$ each
+        self.assertEqual(mm.participants[buyer2], {
+            'TSMC': 1000 + 60,
+            'CASH': 200_000 - 60 * 110})
+
+        # buyer1 bought 50 for 110 and 90 for 120
+        self.assertEqual(mm.participants[buyer1], {
+            'TSMC': 1000 + 50 + 90,
+            'CASH': 200_000 - 50 * 110 - 90 * 110})
+
+        # seller sold 110 for 140 and the remining 90 for 120
+        self.assertEqual(mm.participants[seller], {
+            'TSMC': 1000 - 200,
+            'CASH': 200_000 + 110 * 110 + 90 * 110})
+
+        sell = self.given_order(order_type=OrderType.ASK, other_party=seller,
+                                price=110, amount=50)
+        mm.submit_orders(symbol, [sell])
+
+        # seller sold another 10 for 110
+        self.assertEqual(mm.participants[seller], {
+            'TSMC': 1000 - 200 - 10,
+            'CASH': 200_000 + 110 * 110 + 90 * 110 + 10 * 110})
+
+        # seller still
+        self.assertEqual(mm.ask[symbol][110][0].amount, 40)
