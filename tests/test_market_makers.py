@@ -3,18 +3,18 @@ import uuid
 from unittest import TestCase
 from copy import deepcopy
 
-from markets.orders import OrderType, Order
+from markets.orders import OrderType, Order, ExecutionType
 from markets.realistic import MarketMaker
 
 
 class MarketMakerTest(TestCase):
 
     def setUp(self) -> None:
-        self.order = Order(other_party=uuid.uuid4(), order_type=OrderType.ASK,
+        self.order = Order(other_party=uuid.uuid4(), order_type=OrderType.ASK, execution_type=ExecutionType.LIMIT,
                            symbol='TSMC', amount=100, price=134, expiry=dt.datetime.now())
         self.symbols = ['TSMC']
 
-    def given_market_maker(self):
+    def given_market_maker(self) -> MarketMaker:
         return MarketMaker(self.symbols)
 
     def given_order(self, **kwargs):
@@ -47,55 +47,62 @@ class MarketMakerTest(TestCase):
         except ValueError as ve:
             self.assertTrue("Illegal order" in str(ve))
 
-    def test_initial_ask(self):
-        order = self.given_order()
-        symbol = order.symbol
-        mm = self.given_market_maker()
-        mm.submit_orders(order.symbol, [order])
-        self.assertEqual(mm.lowest_ask[symbol], order)
-        self.assertEqual(mm.ask[order.symbol][order.price][0], order)
+    def test_initial_ask_and_bid(self):
+        for order_type in OrderType:
+            order = self.given_order(order_type=order_type)
+            symbol, price = order.symbol, order.price
+            mm = self.given_market_maker()
+            mm.submit_orders(order.symbol, [order])
+            self.assertEqual(mm.candidates[order_type][symbol], order)
+            self.assertEqual(mm.orders[order_type][symbol][price][0], order)
 
-        # An equal bid won't update the high, yet gets registered for later matching
-        other_order = self.given_order(order_type=OrderType.ASK)
-        mm.submit_orders(symbol, [other_order])
-        self.assertEqual(mm.lowest_ask[symbol].price, other_order.price)
-        # order matters, since it determines execution order!
-        self.assertEqual(mm.ask[symbol][order.price][0], order)
-        self.assertEqual(mm.ask[symbol][order.price][1], other_order)
+            # An equal bid won't update the high, yet gets registered for later matching
+            other_order = self.given_order(order_type=order_type)
+            mm.submit_orders(symbol, [other_order])
+            self.assertEqual(mm.candidates[order_type][symbol].price, other_order.price)
+            # order matters, since it determines execution order!
+            self.assertEqual(mm.orders[order_type][symbol][price][0], order)
+            self.assertEqual(mm.orders[order_type][symbol][price][1], other_order)
 
-    def test_initial_unmatched_bids(self):
-        order = self.given_order(order_type=OrderType.BID)
-        symbol = order.symbol
-        mm = self.given_market_maker()
-        mm.submit_orders(symbol, [order])
-        self.assertEqual(mm.highest_bid[symbol], order)
-        self.assertEqual(mm.bid[order.symbol][order.price][0], order)
+    def test_initial_unmatched_orders(self):
 
-        # An equal bid won't update the high, yet gets registered for later matching
-        other_order = self.given_order(order_type=OrderType.BID)
-        mm.submit_orders(symbol, [other_order])
-        self.assertEqual(mm.highest_bid[symbol].price, other_order.price)
-        # order matters, since it determines execution order!
-        self.assertEqual(mm.bid[symbol][order.price][0], order)
-        self.assertEqual(mm.bid[symbol][order.price][1], other_order)
+        for order_type in OrderType:
+            order = self.given_order(order_type=order_type)
+            symbol = order.symbol
+            mm = self.given_market_maker()
+            mm.submit_orders(symbol, [order])
+            self.assertEqual(mm.candidates[order_type][symbol], order)
+            self.assertEqual(mm.orders[order_type][order.symbol][order.price][0], order)
+
+            # An equal order won't replace the current candidate, yet gets registered for later matching
+            other_order = self.given_order(order_type=order_type)
+            mm.submit_orders(symbol, [other_order])
+            self.assertEqual(mm.candidates[order_type][symbol].price, other_order.price)
+            # order matters, since it determines execution order!
+            self.assertEqual(mm.orders[order_type][symbol][order.price][0], order)
+            self.assertEqual(mm.orders[order_type][symbol][order.price][1], other_order)
 
     def test_perfect_match(self):
+        symbol = 'TSMC'
         buyer, seller = uuid.uuid4(), uuid.uuid4()
         mm = self.given_market_maker()
-        mm.register_participant(buyer, {'TSMC': 1000, 'CASH': 200_000})
-        mm.register_participant(seller, {'TSMC': 1000, 'CASH': 200_000})
+        mm.register_participant(buyer, {symbol: 1000, 'CASH': 200_000})
+        mm.register_participant(seller, {symbol: 1000, 'CASH': 200_000})
 
         sell = self.given_order(order_type=OrderType.ASK, other_party=seller)
-        symbol = sell.symbol
-        mm.submit_orders(symbol, [sell])
-
         buy = self.given_order(order_type=OrderType.BID, other_party=buyer)
-        symbol = buy.symbol
-        mm.submit_orders(symbol, [buy])
-        self.assertEqual(mm.participants[buyer]['CASH'], 200_000 - sell.amount * sell.price)
-        self.assertEqual(mm.participants[seller]['CASH'], 200_000 + sell.amount * sell.price)
-        self.assertEqual(mm.participants[buyer]['TSMC'], 1000 + sell.amount)
-        self.assertEqual(mm.participants[seller]['TSMC'], 1000 - sell.amount)
+
+        # Whoever is first, we should have a perfect match
+        for pair in [[buy, sell], [sell, buy]]:
+            prev_buyer = deepcopy(mm.participants[buyer])
+            prev_seller = deepcopy(mm.participants[seller])
+
+            mm.submit_orders(symbol, pair)
+
+            self.assertEqual(mm.participants[buyer]['CASH'], prev_buyer['CASH'] - sell.amount * sell.price)
+            self.assertEqual(mm.participants[seller]['CASH'], prev_seller['CASH'] + sell.amount * sell.price)
+            self.assertEqual(mm.participants[buyer][symbol], prev_buyer[symbol] + sell.amount)
+            self.assertEqual(mm.participants[seller][symbol], prev_seller[symbol] - sell.amount)
 
     def test_multi_match_buy(self):
         buyer, seller1, seller2 = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
@@ -115,7 +122,7 @@ class MarketMakerTest(TestCase):
         symbol = sell1.symbol
         mm.submit_orders(symbol, [sell0, sell1, sell2, sell3])
 
-        self.assertEqual(3, len(mm.ask[symbol]))
+        self.assertEqual(3, len(mm.orders[OrderType.ASK][symbol]))
 
         buy = self.given_order(order_type=OrderType.BID, other_party=buyer,
                                price=130, amount=200)
@@ -148,7 +155,7 @@ class MarketMakerTest(TestCase):
             'CASH': 200_000 - 110 * 100 - 90 * 120 - 10 * 120})
 
         # buyer still bidding 130 for the remaining 30
-        self.assertEqual(mm.bid[symbol][130][0].amount, 40)
+        self.assertEqual(mm.orders[OrderType.BID][symbol][130][0].amount, 40)
 
     def test_multi_match_sell(self):
         seller, buyer1, buyer2 = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
@@ -169,7 +176,7 @@ class MarketMakerTest(TestCase):
         symbol = 'TSMC'
         mm.submit_orders(symbol, [buy3, buy2, buy1, buy0])
 
-        self.assertEqual(3, len(mm.bid[symbol]))
+        self.assertEqual(3, len(mm.orders[OrderType.BID][symbol]))
 
         sell = self.given_order(order_type=OrderType.ASK, other_party=seller,
                                 price=110, amount=200)
@@ -200,5 +207,5 @@ class MarketMakerTest(TestCase):
             'TSMC': 1000 - 200 - 10,
             'CASH': 200_000 + 110 * 110 + 90 * 110 + 10 * 110})
 
-        # seller still
-        self.assertEqual(mm.ask[symbol][110][0].amount, 40)
+        # seller still asking 110 for the remaining 40
+        self.assertEqual(mm.orders[OrderType.ASK][symbol][110][0].amount, 40)

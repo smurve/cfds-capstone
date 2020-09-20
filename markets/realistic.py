@@ -25,6 +25,17 @@ class MarketMaker(AbstractMarketMaker):
             self.bid[symbol] = OrderedDict()
             self.ask[symbol] = OrderedDict()
 
+        # API V2.0
+        self.orders: Dict[OrderType, Dict[str, OrderedDict]] = {}
+        for order_type in OrderType:
+            self.orders[order_type] = {}
+            for symbol in symbols:
+                self.orders[order_type][symbol] = OrderedDict()
+        self.candidates = {
+            OrderType.BID: {symbol: None for symbol in symbols},  # highest bid
+            OrderType.ASK: {symbol: None for symbol in symbols}  # lowest ask
+        }
+
     def register_participant(self, uuid: UUID, portfolio: Dict[str, float]):
         if not all([key in self.symbols for key in portfolio.keys()]):
             raise ValueError("Illegal portfolio: Not all given assets are supported here.")
@@ -37,120 +48,79 @@ class MarketMaker(AbstractMarketMaker):
             order = deepcopy(order)
             if order.symbol not in self.symbols:
                 raise ValueError(f"Illegal order: symbol {symbol} no traded here.")
-            if order.order_type == OrderType.BID:
-                self.process_buy_order(symbol, order)
-            elif order.order_type == OrderType.ASK:
-                self.process_sell_order(symbol, order)
+
+            candidate = self.candidates[order.order_type.other()].get(symbol)
+            if candidate is None:
+                self.register_order(order)
             else:
-                raise ValueError(f"Can't handle {str(order)}")
+                self.process_order(order, candidate)
 
-    def process_buy_order(self, symbol: str, order: Order):
-        candidate = self.lowest_ask.get(symbol)
-        if not candidate or candidate.price > order.price:
-            # No candidate or no match -> register for later
-            self.register_bid(symbol, order)
-        else:
-            done = False
-            while not done:
-                order, done = self.try_execute_bid(order)
+    def register_order(self, order: Order):
+        order_type, symbol, price = order.order_type, order.symbol, order.price
 
-    def process_sell_order(self, symbol: str, order: Order):
-        candidate = self.highest_bid.get(symbol)
-        if not candidate or candidate.price < order.price:
-            # No candidate or no match -> register for later
-            self.register_ask(symbol, order)
-        else:
-            done = False
-            while not done:
-                order, done = self.try_execute_ask(order)
+        # set highest/lowest, if appropriate
+        if not self.candidates[order_type].get(symbol) or order.precedes(self.candidates[order_type][symbol]):
+            self.candidates[order_type][symbol] = order
 
-    def register_ask(self, symbol: str, order: Order):
-        # if there's no ask yet, or the current ask is lower, we've got a new low
-        if not self.lowest_ask.get(symbol) or order.price < self.lowest_ask[symbol].price:
-            self.lowest_ask[symbol] = order
+        # append to the list of same type - same price orders
+        queue = self.orders[order_type][symbol]
+        if queue.get(price) is None:
+            queue[price] = []
 
-        if self.ask[symbol].get(order.price) is None:
-            self.ask[symbol][order.price] = []
+        queue[price].append(order)
 
-        self.ask[symbol][order.price].append(order)
+    def process_order(self, order: Order, candidate: Order):
+        done = False
+        while not done:
+            order, done = self.process_order_maybe_partially(order, candidate)
+            if not done:
+                candidate = self.candidates[order.order_type.other()].get(order.symbol)
 
-    def register_bid(self, symbol: str, order: Order):
-        if self.bid[symbol].get(order.price) is None:
-            self.bid[symbol][order.price] = []
-
-        # if there's no bid yet, or the current bid is higher, we've got a new high
-        if not self.highest_bid.get(symbol) or order.price > self.highest_bid[symbol].price:
-            self.highest_bid[symbol] = order
-
-        self.bid[symbol][order.price].append(order)
-
-    def try_execute_bid(self, bid: Order) -> Tuple[Optional[Order], bool]:
+    def process_order_maybe_partially(self, order: Order, candidate: Order) -> Tuple[Optional[Order], bool]:
+        bid, ask = (order, candidate) if order.order_type == OrderType.BID else (candidate, order)
         symbol = bid.symbol
-        ask = self.lowest_ask[symbol]
         if ask.price <= bid.price:
             tx_price = ask.price
             tx_volume = min(ask.amount, bid.amount)
             bid.amount -= tx_volume
             ask.amount -= tx_volume
-            self.execute_bid(buyer=bid.other_party,
-                             seller=ask.other_party,
-                             symbol=symbol,
-                             volume=tx_volume,
-                             price=tx_price)
-            if bid.amount == 0:
-                return None, True
+            self.execute_transaction(buyer=bid.other_party,
+                                     seller=ask.other_party,
+                                     symbol=symbol,
+                                     volume=tx_volume,
+                                     price=tx_price)
+            if candidate.amount == 0:
+                # candidate is exhausted, remove it from the queue
+                self.remove_order(candidate)
 
-            if ask.amount == 0:
-                self.remove_ask(ask)
-                # the lowest ask is exhausted -> determine new low_ask
-                new_low = list(self.ask[symbol].keys())[-1]
-                self.lowest_ask[symbol] = self.ask[symbol][new_low][0]
-                return bid, False
+                # next candidate price is popped from top (lowest_ask) or bottom (highest_bid)
+                order_type = candidate.order_type
+                prices = self.orders[order_type][symbol].keys()
+                if len(prices) > 0:
+                    pop_index = 0 if order_type == OrderType.BID else -1
+                    new_price = list(self.orders[order_type][symbol].keys())[pop_index]
+
+                    # pick the least recent order of that price as new candidate
+                    self.candidates[candidate.order_type][symbol] = self.orders[order_type][symbol][new_price][0]
+                else:
+                    self.candidates[candidate.order_type][symbol] = None
+
+            if order.amount == 0:
+                return None, True
+            else:
+                return order, False
         else:
-            self.register_bid(symbol, bid)
+            self.register_order(order)
 
         return None, True
 
-    def remove_ask(self, order: Order):
-        symbol = order.symbol
-        del self.ask[symbol][order.price][0]
-        if len(self.ask[symbol][order.price]) == 0:
-            del self.ask[symbol][order.price]
+    def remove_order(self, order):
+        symbol, order_type, price = order.symbol, order.order_type, order.price
+        del self.orders[order_type][symbol][order.price][0]
+        if len(self.orders[order_type][symbol][price]) == 0:
+            del self.orders[order_type][symbol][order.price]
 
-    def remove_bid(self, order: Order):
-        symbol = order.symbol
-        del self.bid[symbol][order.price][0]
-        if len(self.bid[symbol][order.price]) == 0:
-            del self.bid[symbol][order.price]
-
-    def try_execute_ask(self, ask: Order) -> Tuple[Optional[Order], bool]:
-        symbol = ask.symbol
-        bid = self.highest_bid[symbol]
-        if ask.price <= bid.price:
-            tx_price = ask.price
-            tx_volume = min(bid.amount, ask.amount)
-            ask.amount -= tx_volume
-            bid.amount -= tx_volume
-            self.execute_bid(buyer=bid.other_party,
-                             seller=ask.other_party,
-                             symbol=symbol,
-                             volume=tx_volume,
-                             price=tx_price)
-            if ask.amount == 0:
-                return None, True
-
-            if bid.amount == 0:
-                self.remove_bid(bid)
-                # the highest bid is exhausted -> determine new high_bid
-                new_high = list(self.bid[symbol].keys())[0]
-                self.highest_bid[symbol] = self.bid[symbol][new_high][0]
-                return ask, False
-        else:
-            self.register_ask(symbol, ask)
-
-        return None, True
-
-    def execute_bid(self, buyer, seller, symbol, volume, price):
+    def execute_transaction(self, buyer, seller, symbol, volume, price):
         self.participants[buyer][symbol] += volume
         self.participants[seller][symbol] -= volume
 

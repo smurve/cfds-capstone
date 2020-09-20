@@ -1,25 +1,44 @@
+import datetime as dt
+from dataclasses import dataclass
 from enum import Enum
 from uuid import UUID
-import datetime as dt
-from collections import namedtuple, OrderedDict
-import pandas as pd
+
 import numpy as np
-from dataclasses import dataclass
+import pandas as pd
 
 
 class OrderType(Enum):
     ASK = 'ask'
     BID = 'bid'
 
+    def other(self):
+        if self == OrderType.ASK:
+            return OrderType.BID
+        else:
+            return OrderType.ASK
+
+
+class ExecutionType(Enum):
+    MARKET = 'market'
+    LIMIT = 'limit'
+
 
 @dataclass()
 class Order:
     other_party: UUID
     order_type: OrderType
+    execution_type: ExecutionType
     symbol: str
     amount: float
     price: float
     expiry: dt.datetime
+
+    def __repr__(self):
+        return f'{self.order_type.value} {self.price} for {self.amount} shares of {self.symbol}'
+
+    def precedes(self, other) -> bool:
+        assert other.order_type == self.order_type
+        return self.price > other.price if self.order_type == OrderType.BID else self.price < other.price
 
 
 class TriangularOrderGenerator:
