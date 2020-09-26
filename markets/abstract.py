@@ -17,10 +17,9 @@ class AbstractMarketMaker(ABC):
         pass
 
     @abstractmethod
-    def submit_orders(self, symbol: str, orders: List[Order]):
+    def submit_orders(self, orders: List[Order]):
         """
         submit orders for a particular stock, identified by symbol
-        :param symbol: name of the stock to transact
         :param orders: list of Orders
         """
         pass
