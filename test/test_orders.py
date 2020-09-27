@@ -2,7 +2,7 @@ import datetime as dt
 import uuid
 from unittest import TestCase
 
-from markets.orders import TriangularOrderGenerator, OrderType
+from markets.realistic import TriangularOrderGenerator, OrderType
 
 
 class OrderGeneratorTest(TestCase):

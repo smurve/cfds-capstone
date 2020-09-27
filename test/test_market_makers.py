@@ -3,15 +3,16 @@ import uuid
 from copy import deepcopy
 from unittest import TestCase
 
-from markets.orders import OrderType, Order, ExecutionType
-from markets.realistic import MarketMaker
+from markets.realistic import Order, OrderType, ExecutionType, MarketMaker
 
 
 class MarketMakerTest(TestCase):
 
     def setUp(self) -> None:
-        self.order = Order(other_party=uuid.uuid4(), order_type=OrderType.ASK, execution_type=ExecutionType.LIMIT,
-                           symbol='TSMC', amount=100, price=134, expiry=dt.datetime.now())
+        self.order = Order(other_party=uuid.uuid4(), order_type=OrderType.ASK,
+                           execution_type=ExecutionType.LIMIT,
+                           symbol='TSMC', amount=100, price=134,
+                           expiry=dt.datetime.now())
         self.symbols = {'TSMC': 100.0, 'NVDA': 200.0}
 
     def given_market_maker(self) -> MarketMaker:

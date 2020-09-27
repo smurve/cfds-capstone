@@ -1,11 +1,14 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Dict
 from uuid import UUID
 
-from markets.orders import Order
+from .Order import Order
 
 
 class AbstractMarketMaker(ABC):
+    """
+    The public interface of a MarketMaker
+    """
 
     @abstractmethod
     def register_participant(self, uuid: UUID, portfolio: dict):
@@ -23,3 +26,10 @@ class AbstractMarketMaker(ABC):
         :param orders: list of Orders
         """
         pass
+
+    def get_prices(self) -> Dict[str, Dict[str, float]]:
+        """
+        Get bid-ask and last tx prices.
+        :return: Dict of Dict of like so:
+            {'SYMBOL': {'bid': 100, 'ask': 101, 'last': 100.3}, ...}
+        """

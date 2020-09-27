@@ -3,8 +3,8 @@ from typing import Optional, Dict, List, Tuple
 from uuid import UUID
 from copy import deepcopy
 
-from markets.abstract import AbstractMarketMaker
-from markets.orders import Order, OrderType, ExecutionType
+from .AbstractMarketMaker import AbstractMarketMaker
+from .Order import Order, OrderType, ExecutionType
 
 
 class MarketMaker(AbstractMarketMaker):

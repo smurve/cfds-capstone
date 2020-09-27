@@ -1,7 +1,7 @@
 from unittest import TestCase
 
-from markets.stocks_model import create_stocks, rnd_sentiments
 from markets.dynamic_market import Stock, Segment, GeoMarket, MomentumInvestor, Market
+from markets.stocks_model import rnd_sentiments
 
 
 class MarketTest(TestCase):
