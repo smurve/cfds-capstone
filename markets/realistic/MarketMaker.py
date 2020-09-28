@@ -5,6 +5,7 @@ from copy import deepcopy
 
 from .AbstractMarketMaker import AbstractMarketMaker
 from .Order import Order, OrderType, ExecutionType
+from ..dynamic_market import Stock
 
 
 class MarketMaker(AbstractMarketMaker):
@@ -22,12 +23,12 @@ class MarketMaker(AbstractMarketMaker):
     the most recent clearing price is used.
     """
 
-    def __init__(self, initial_prices: Dict[str, float]):
+    def __init__(self, stocks: List[Stock]):
         """
-        :param initial_prices: map of symbols with initial prices
+        :param stocks: map of symbols with initial prices
         """
-        self.symbols = list(initial_prices.keys())
-        self.mrtxp = initial_prices
+        self.symbols = [stock.name for stock in stocks]
+        self.mrtxp = {stock.name: stock.psi(0) for stock in stocks}
 
         self.participants: Dict[UUID, Dict[str, float]] = {}
 
@@ -36,13 +37,13 @@ class MarketMaker(AbstractMarketMaker):
         for order_type in OrderType:
             self.orders[order_type] = {}
             self.market_orders[order_type] = {}
-            for symbol in initial_prices:
-                self.orders[order_type][symbol] = OrderedDict()
-                self.market_orders[order_type][symbol] = []
+            for stock in stocks:
+                self.orders[order_type][stock.name] = OrderedDict()
+                self.market_orders[order_type][stock.name] = []
 
         self.candidates = {
-            OrderType.BID: {symbol: None for symbol in initial_prices},  # highest bid
-            OrderType.ASK: {symbol: None for symbol in initial_prices}  # lowest ask
+            OrderType.BID: {symbol: None for symbol in stocks},  # highest bid
+            OrderType.ASK: {symbol: None for symbol in stocks}  # lowest ask
         }
 
     def get_prices(self) -> Dict[str, Dict[str, float]]:

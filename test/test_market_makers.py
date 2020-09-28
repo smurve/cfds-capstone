@@ -2,6 +2,7 @@ import datetime as dt
 import uuid
 from copy import deepcopy
 from unittest import TestCase
+import test.test_helpers as helpers
 
 from markets.realistic import Order, OrderType, ExecutionType, MarketMaker
 
@@ -15,8 +16,12 @@ class MarketMakerTest(TestCase):
                            expiry=dt.datetime.now())
         self.symbols = {'TSMC': 100.0, 'NVDA': 200.0}
 
-    def given_market_maker(self) -> MarketMaker:
-        return MarketMaker(self.symbols)
+    @staticmethod
+    def given_market_maker() -> MarketMaker:
+
+        return MarketMaker([
+            helpers.given_stock('TSMC', 100.0),
+            helpers.given_stock('NVDA', 200.0)])
 
     def given_order(self, **kwargs):
         order = deepcopy(self.order)

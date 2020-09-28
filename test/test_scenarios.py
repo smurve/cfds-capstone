@@ -1,11 +1,13 @@
 from unittest import TestCase
-import ray
+
 import pytest
+import ray
 
 from markets.realistic import *
+import test.test_helpers as helpers
 
 
-class ScenarioTestClass(TestCase):
+class ScenarioTest(TestCase):
 
     @staticmethod
     def get_scenario() -> AbstractMarketScenario:
@@ -15,20 +17,19 @@ class ScenarioTestClass(TestCase):
 
         sc = self.get_scenario()
 
-        initial_prices = {
-            'TSMC': 100,
-            'NVDA': 200,
-            'AAPL': 140,
-            'SNOW': 400,
-            'GE': '20'
-        }
-        mm = MarketMaker(initial_prices)
+        initial_stocks = [helpers.given_stock('TSMC', 186.)]
+        mm = MarketMaker(initial_stocks)
+
+        market_makers = sc.register_market_makers(mm)
+        self.assertIsNotNone(market_makers)
 
         warren = MomentumInvestor(name='Warren Buffet',
                                   portfolio={'TSMC': 5000, 'CASH': 200_000},
                                   market_maker=mm)
 
-        sc.register_investors(warren)
+        investors = sc.register_investors(warren)
+        warren = investors[0]
+        self.assertIsNotNone(warren)
 
         investors_list = sc.identify_investors()
 
@@ -38,7 +39,7 @@ class ScenarioTestClass(TestCase):
 
 
 @pytest.mark.skipif(reason="tests with ray actors only work in the IDE")
-class RayScenarioTest(ScenarioTestClass):
+class RayScenarioTest(ScenarioTest):
 
     def setUp(self) -> None:
         ray.init()

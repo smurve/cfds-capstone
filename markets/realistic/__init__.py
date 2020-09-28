@@ -6,5 +6,6 @@ from .AbstractMarketMaker import AbstractMarketMaker
 from .MarketMaker import MarketMaker
 from .Order import OrderType, ExecutionType, Order
 from .AbstractInvestor import AbstractInvestor
+from .AsyncInvestor import AsyncInvestor
 from .MomentumInvestor import MomentumInvestor
 from .TriangularOrderGenerator import TriangularOrderGenerator
