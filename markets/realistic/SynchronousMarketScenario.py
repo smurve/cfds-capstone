@@ -16,6 +16,7 @@ class SynchronousMarketScenario(AbstractMarketScenario):
         self.market_makers: List[AbstractMarketMaker] = []
 
     def register_investors(self, *investors: AbstractInvestor) -> List[AbstractInvestor]:
+        # TODO: Should provide a matching MarketMaker to the investor
         self.investors += list(investors)
         return list(investors)
 

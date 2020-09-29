@@ -17,8 +17,9 @@ class ScenarioTest(TestCase):
 
         sc = self.get_scenario()
 
-        initial_stocks = [helpers.given_stock('TSMC', 186.)]
-        mm = MarketMaker(initial_stocks)
+        market = USITMarket({'TSMC': 186.73, 'AAPL': 201.22, 'TSLA': 462.4})
+
+        mm = MarketMaker(market)
 
         market_makers = sc.register_market_makers(mm)
         self.assertIsNotNone(market_makers)
@@ -28,6 +29,7 @@ class ScenarioTest(TestCase):
                                   market_maker=mm)
 
         investors = sc.register_investors(warren)
+
         warren = investors[0]
         self.assertIsNotNone(warren)
 
@@ -36,6 +38,19 @@ class ScenarioTest(TestCase):
         self.assertIsNotNone(investors_list[0])
 
         self.assertIn('Warren Buffet', investors_list[0])
+
+        sc.tick()
+
+        # TODO: Introduce Clock with seconds, minutes, hours, days - let 'tick' be configurable. Start with a minute
+        # TODO: Tick should 'flow' to the investors
+        # TODO: An investor asks the market maker for prices and values of her portfolio
+        # TODO: Introduce simple Momentum and Value Investors
+        # TODO: Investors create triangular limit orders (Institutional) or market orders (Retail)
+        # TODO: Introduce node- and stock-specific market makers
+        # TODO: Introduce order expiry
+        # TODO: Introduce stop loss strategy for investors
+        # TODO: Introduce central logging (return values from 'tick')
+        # TODO: Introduce reporting from the market maker
 
 
 @pytest.mark.skipif(reason="tests with ray actors only work in the IDE")

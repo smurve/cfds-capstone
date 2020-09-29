@@ -5,6 +5,7 @@ from copy import deepcopy
 
 from .AbstractMarketMaker import AbstractMarketMaker
 from .Order import Order, OrderType, ExecutionType
+from .Market import Market
 from ..dynamic_market import Stock
 
 
@@ -23,10 +24,12 @@ class MarketMaker(AbstractMarketMaker):
     the most recent clearing price is used.
     """
 
-    def __init__(self, stocks: List[Stock]):
+    def __init__(self, market: Market):
         """
-        :param stocks: map of symbols with initial prices
+        :param market: a market instance
         """
+        stocks: List[Stock] = market.get_stocks()
+
         self.symbols = [stock.name for stock in stocks]
         self.mrtxp = {stock.name: stock.psi(0) for stock in stocks}
 

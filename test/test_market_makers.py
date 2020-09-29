@@ -4,7 +4,7 @@ from copy import deepcopy
 from unittest import TestCase
 import test.test_helpers as helpers
 
-from markets.realistic import Order, OrderType, ExecutionType, MarketMaker
+from markets.realistic import Order, OrderType, ExecutionType, MarketMaker, USITMarket
 
 
 class MarketMakerTest(TestCase):
@@ -19,9 +19,7 @@ class MarketMakerTest(TestCase):
     @staticmethod
     def given_market_maker() -> MarketMaker:
 
-        return MarketMaker([
-            helpers.given_stock('TSMC', 100.0),
-            helpers.given_stock('NVDA', 200.0)])
+        return MarketMaker(USITMarket({'TSMC': 100., 'NVDA': 200.}))
 
     def given_order(self, **kwargs):
         order = deepcopy(self.order)
