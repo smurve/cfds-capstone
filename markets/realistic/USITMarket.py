@@ -2,10 +2,10 @@ from typing import Dict, List
 
 from markets.dynamic_market import Segment, GeoMarket, Stock
 from markets.stocks_model import rnd_sentiments
-from .Market import Market
+from .AbstractMarket import AbstractMarket
 
 
-class USITMarket(Market):
+class USITMarket(AbstractMarket):
 
     def __init__(self, stocks: Dict[str, float]):
         self.segments = {'IT': Segment('Information Technology', {0: (.0, -.002)})}
@@ -32,9 +32,12 @@ class USITMarket(Market):
     def get_stocks(self) -> List[Stock]:
         return list(self.stocks.values())
 
+    def get_intrinsic_value(self, symbol: str, day: int) -> float:
+        return self.stocks[symbol].psi(day)
+
     @staticmethod
     def create_stock(symbol: str, initial_value: float,
-                     segment_betas: Dict[Segment, float], geo_betas: Dict[GeoMarket, float]):
+                     segment_betas: Dict[Segment, float], geo_betas: Dict[GeoMarket, float]) -> Stock:
         sentiments = rnd_sentiments()  # quarterly impacted stock sentiments
         e_cagr = 1e-4
         max_effect = 3.0
@@ -42,3 +45,4 @@ class USITMarket(Market):
         return Stock(name=symbol, e_cagr=e_cagr, max_effect=max_effect, psi0=initial_value,
                      segments=segment_betas, markets=geo_betas,
                      sentiments=sentiments, noise=.4)
+

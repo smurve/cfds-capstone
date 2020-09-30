@@ -3,9 +3,13 @@ from typing import List
 
 from .AbstractInvestor import AbstractInvestor
 from .AbstractMarketMaker import AbstractMarketMaker
+from .Clock import Clock
 
 
 class AbstractMarketScenario(abc.ABC):
+
+    def __init__(self, clock: Clock):
+        self.clock = clock
 
     @abc.abstractmethod
     def register_investors(self, *investors: AbstractInvestor) -> List[AbstractInvestor]:
@@ -26,7 +30,7 @@ class AbstractMarketScenario(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def tick(self):
+    def tick(self, seconds: int):
         pass
 
     @abc.abstractmethod

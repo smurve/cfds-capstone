@@ -1,8 +1,6 @@
-import datetime as dt
 import uuid
 from copy import deepcopy
 from unittest import TestCase
-import test.test_helpers as helpers
 
 from markets.realistic import Order, OrderType, ExecutionType, MarketMaker, USITMarket
 
@@ -12,8 +10,7 @@ class MarketMakerTest(TestCase):
     def setUp(self) -> None:
         self.order = Order(other_party=uuid.uuid4(), order_type=OrderType.ASK,
                            execution_type=ExecutionType.LIMIT,
-                           symbol='TSMC', amount=100, price=134,
-                           expiry=dt.datetime.now())
+                           symbol='TSMC', amount=100, price=134, expires_in_seconds=10)
         self.symbols = {'TSMC': 100.0, 'NVDA': 200.0}
 
     @staticmethod

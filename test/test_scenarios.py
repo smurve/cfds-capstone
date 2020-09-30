@@ -2,31 +2,40 @@ from unittest import TestCase
 
 import pytest
 import ray
+import numpy as np
 
 from markets.realistic import *
-import test.test_helpers as helpers
+from markets.realistic.BiasedMarketView import INTRINSIC_VALUE, BiasedMarketView
+from markets.realistic.Clock import Clock
 
 
 class ScenarioTest(TestCase):
 
     @staticmethod
-    def get_scenario() -> AbstractMarketScenario:
-        return SynchronousMarketScenario()
+    def get_scenario(clock: Clock) -> AbstractMarketScenario:
+        return SynchronousMarketScenario(clock)
 
     def test_scenario(self):
+        np.random.seed(17)
 
-        sc = self.get_scenario()
+        clock = Clock(n_seconds=60, n_minutes=60, n_hours=24, n_days=256)
+
+        sc = self.get_scenario(clock)
 
         market = USITMarket({'TSMC': 186.73, 'AAPL': 201.22, 'TSLA': 462.4})
+        noise = .05
+        biases = {INTRINSIC_VALUE: lambda v: np.random.normal(v, v*noise)}
+        biased_market_view = BiasedMarketView(market, biases)
 
         mm = MarketMaker(market)
 
         market_makers = sc.register_market_makers(mm)
         self.assertIsNotNone(market_makers)
 
-        warren = MomentumInvestor(name='Warren Buffet',
-                                  portfolio={'TSMC': 5000, 'CASH': 200_000},
-                                  market_maker=mm)
+        warren = ChartInvestor(market=biased_market_view,
+                               name='Warren Buffet',
+                               portfolio={'TSMC': 5000},
+                               cash=200_000)
 
         investors = sc.register_investors(warren)
 
@@ -39,15 +48,14 @@ class ScenarioTest(TestCase):
 
         self.assertIn('Warren Buffet', investors_list[0])
 
-        sc.tick()
+        sc.tick(seconds=10)
 
-        # TODO: Introduce Clock with seconds, minutes, hours, days - let 'tick' be configurable. Start with a minute
-        # TODO: Tick should 'flow' to the investors
-        # TODO: An investor asks the market maker for prices and values of her portfolio
-        # TODO: Introduce simple Momentum and Value Investors
-        # TODO: Investors create triangular limit orders (Institutional) or market orders (Retail)
+        pass
+
+        # TODO: Introduce simple Momentum Investors
+        # TODO: Investors may create market orders (Retail)
         # TODO: Introduce node- and stock-specific market makers
-        # TODO: Introduce order expiry
+        # TODO: Handle order expiry at market maker and investor side
         # TODO: Introduce stop loss strategy for investors
         # TODO: Introduce central logging (return values from 'tick')
         # TODO: Introduce reporting from the market maker
@@ -63,5 +71,5 @@ class RayScenarioTest(ScenarioTest):
         ray.shutdown()
 
     @staticmethod
-    def get_scenario() -> AbstractMarketScenario:
-        return RayMarketScenario()
+    def get_scenario(clock: Clock) -> AbstractMarketScenario:
+        return RayMarketScenario(clock)

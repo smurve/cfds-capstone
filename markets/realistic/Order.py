@@ -29,7 +29,7 @@ class Order:
     symbol: str
     amount: float
     price: float
-    expiry: dt.datetime
+    expires_in_seconds: int
 
     def __repr__(self):
         return f'{self.order_type.value} ' \

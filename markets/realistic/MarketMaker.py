@@ -5,7 +5,7 @@ from copy import deepcopy
 
 from .AbstractMarketMaker import AbstractMarketMaker
 from .Order import Order, OrderType, ExecutionType
-from .Market import Market
+from .AbstractMarket import AbstractMarket
 from ..dynamic_market import Stock
 
 
@@ -24,7 +24,7 @@ class MarketMaker(AbstractMarketMaker):
     the most recent clearing price is used.
     """
 
-    def __init__(self, market: Market):
+    def __init__(self, market: AbstractMarket):
         """
         :param market: a market instance
         """
@@ -70,7 +70,7 @@ class MarketMaker(AbstractMarketMaker):
         for order in orders:
             symbol = order.symbol
             if symbol not in self.symbols:
-                raise ValueError(f"Illegal order: symbol {symbol} no traded here.")
+                raise ValueError(f"Illegal order: symbol {symbol} not traded here.")
 
             order = deepcopy(order)
             candidate = self.candidates[order.order_type.other()].get(symbol)
@@ -187,3 +187,6 @@ class MarketMaker(AbstractMarketMaker):
 
         self.participants[buyer]['CASH'] -= volume * price
         self.participants[seller]['CASH'] += volume * price
+
+    def trades_in(self, stock: str) -> bool:
+        return stock in self.symbols

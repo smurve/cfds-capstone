@@ -1,10 +1,9 @@
-import datetime as dt
 from uuid import UUID
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-from .Order import Order, OrderType
+from .Order import Order, OrderType, ExecutionType
 
 
 class TriangularOrderGenerator:
@@ -14,25 +13,22 @@ class TriangularOrderGenerator:
     and broader distribution of order prices despite a limited number of market participants.
     """
 
-    def __init__(self, client_id: UUID, expiry: dt.date, split: float):
+    def __init__(self, client_id: UUID):
         self.client_id = client_id
-        self.expiry = expiry
-        self.split = split
+
+    def create_orders(self, p: float, tau: float, n: float, order_type: OrderType, n_orders: int):
         """
-        params: split: the price diff between to subsequent partial orders
+        creates a list of prices centered at p and share fractions the sum of which equals p times n
+        :param p: the central price
+        :param tau: the relative tolerance as fraction of p
+        :param n: the number of shares to transact
+        :param order_type: order type: BID or ASK
+        :param n_orders: number of orders
+        :return: A list of tuples representing Orders
         """
 
-    def create_orders(self, p: float, tau: float, n: float, order_type: OrderType):
-        """
-        creates a list of prices and share fractions the sum of which equals p times N
-
-        params:
-            p: bid or ask price
-            N: number of shares, may be float
-        """
-
-        # number of single order to generate
-        nu = int(tau * p / self.split)
+        # number of single orders to generate
+        nu = n_orders + 1  # int(tau * p / self.split)
 
         # lower and upper price bound
         p_lower = p * (1 - tau / 2)
@@ -61,25 +57,27 @@ class TriangularOrderGenerator:
                 )
                for i in range(nu)]
 
-        return res if order_type == OrderType.BID else res[::-1]
+        return res[:-1] if order_type == OrderType.BID else res[-2::-1]
 
-    def create_orders_df(self, symbol: str, p: float, tau: float, n: float, order_type: OrderType):
+    def create_orders_df(self, symbol: str, p: float, tau: float, n: float, order_type: OrderType, n_orders: int):
 
-        orders = self.create_orders(p=p, tau=tau, n=n, order_type=order_type)
+        orders = self.create_orders(p=p, tau=tau, n=n, order_type=order_type, n_orders=n_orders)
         orders = np.array(orders).T
         orders = pd.DataFrame.from_dict({'price': orders[0], 'amount': orders[1]})
         orders['other_party'] = self.client_id
         orders['symbol'] = symbol
-        orders['expiry'] = self.expiry
         orders['order_type'] = order_type
 
         return orders
 
-    def create_orders_list(self, symbol: str, p: float, tau: float, n: float, order_type: OrderType):
+    def create_orders_list(self, symbol: str, p: float, tau: float, n: float,
+                           order_type: OrderType, execution_type: ExecutionType, expire_in_seconds: int, n_orders: int):
         """
         :return: an OrderedDict of orders with price as key
         """
-        orders = self.create_orders_df(symbol, p, tau, n, order_type)
+        orders = self.create_orders_df(symbol, p, tau, n, order_type, n_orders)
+        orders['expires_in_seconds'] = expire_in_seconds
+        orders['execution_type'] = execution_type
         return [Order(**order) for order in orders.to_dict('records')]
 
     @staticmethod

@@ -1,5 +1,6 @@
 from typing import List
 
+from . import Clock
 from .AbstractMarketScenario import AbstractMarketScenario
 from .AbstractMarketMaker import AbstractMarketMaker
 from .AbstractInvestor import AbstractInvestor
@@ -9,7 +10,8 @@ from .AsyncMarketMaker import AsyncMarketMaker
 
 class RayMarketScenario(AbstractMarketScenario):
 
-    def __init__(self):
+    def __init__(self, clock: Clock):
+        super().__init__(clock)
         self.investors: List[AbstractInvestor] = []
         self.market_makers: List[AbstractMarketMaker] = []
 
@@ -23,9 +25,9 @@ class RayMarketScenario(AbstractMarketScenario):
         self.market_makers += market_makers
         return market_makers
 
-    def tick(self):
+    def tick(self, seconds: int = 1):
         for investor in self.investors:
-            investor.tick()
+            investor.tick(self.clock.tick(seconds))
 
     def identify_investors(self):
         return [inv.identify()

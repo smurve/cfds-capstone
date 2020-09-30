@@ -17,7 +17,6 @@ class AbstractMarketMaker(ABC):
         :param uuid: the uuid identifier of the participant
         :param portfolio: a map of ticker: amount with at least a 'CASH' position
         """
-        pass
 
     @abstractmethod
     def submit_orders(self, orders: List[Order]):
@@ -25,11 +24,18 @@ class AbstractMarketMaker(ABC):
         submit orders for a particular stock, identified by symbol
         :param orders: list of Orders
         """
-        pass
 
+    @abstractmethod
     def get_prices(self) -> Dict[str, Dict[str, float]]:
         """
         Get bid-ask and last tx prices.
         :return: Dict of Dict of like so:
             {'SYMBOL': {'bid': 100, 'ask': 101, 'last': 100.3}, ...}
+        """
+
+    @abstractmethod
+    def trades_in(self, stock: str) -> bool:
+        """
+        :param stock: A stock symbol
+        :return: wether or not this market maker trades with this stock
         """

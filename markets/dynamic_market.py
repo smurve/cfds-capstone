@@ -70,7 +70,7 @@ class Stock(Trending):
 
     def psi(self, t):
         """
-        the total sentiment score from all geomarket exposures and segments
+        The intrinsic value of this stock
         """
 
         def sentiment_effect(x):
