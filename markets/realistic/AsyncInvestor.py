@@ -25,6 +25,9 @@ class RayInvestor:
     def register_with(self, market_maker: AbstractMarketMaker, symbol: str):
         self.delegate.register_with(market_maker, symbol)
 
+    def report_tx(self, order_type, symbol: str, volume: float, price: float, amount: float):
+        self.delegate.report_tx(order_type, symbol, volume, price, amount)
+
 
 class AsyncInvestor(AbstractInvestor):
 
@@ -38,7 +41,10 @@ class AsyncInvestor(AbstractInvestor):
         return ray.get(self.delegate.identify.remote())
 
     def get_stock_symbols(self) -> List[str]:
-        return ray.get(self.delegate.get_stock_symbols())
+        return ray.get(self.delegate.get_stock_symbols.remote())
 
     def register_with(self, market_maker: AbstractMarketMaker, symbol: str):
-        self.delegate.register_with(market_maker, symbol)
+        self.delegate.register_with.remote(market_maker, symbol)
+
+    def report_tx(self, order_type, symbol: str, volume: float, price: float, amount: float):
+        self.delegate.report_tx.remote(order_type, symbol, volume, price, amount)

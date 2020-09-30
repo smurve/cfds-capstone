@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Any
 from uuid import UUID
 from copy import deepcopy
 
@@ -33,7 +33,8 @@ class MarketMaker(AbstractMarketMaker):
         self.symbols = [stock.name for stock in stocks]
         self.mrtxp = {stock.name: stock.psi(0) for stock in stocks}
 
-        self.participants: Dict[UUID, Dict[str, float]] = {}
+        # like {uuid: {'portfolio': {'TSLA': 1200}, 'contact': AbstractInvestor}
+        self.participants: Dict[UUID, Dict[str, Any]] = {}
 
         self.orders: Dict[OrderType, Dict[str, OrderedDict]] = {}
         self.market_orders: Dict[OrderType, Dict[str, List[Order]]] = {}
@@ -61,10 +62,10 @@ class MarketMaker(AbstractMarketMaker):
         candidate = self.candidates[order_type].get(symbol)
         return candidate.price if candidate else None
 
-    def register_participant(self, uuid: UUID, portfolio: Dict[str, float]):
+    def register_participant(self, uuid: UUID, portfolio: Dict[str, float], investor):
         if not all([key in self.symbols for key in portfolio.keys() if key != 'CASH']):
             raise ValueError("Illegal portfolio: Not all given assets are supported here.")
-        self.participants[uuid] = portfolio
+        self.participants[uuid] = {'portfolio': portfolio, 'contact': investor}
 
     def submit_orders(self, orders: List[Order]):
         for order in orders:
@@ -182,11 +183,17 @@ class MarketMaker(AbstractMarketMaker):
                 del self.orders[order_type][symbol]
 
     def execute_transaction(self, buyer, seller, symbol, volume, price):
-        self.participants[buyer][symbol] += volume
-        self.participants[seller][symbol] -= volume
+        self.participants[buyer]['portfolio'][symbol] += volume
+        self.participants[seller]['portfolio'][symbol] -= volume
 
-        self.participants[buyer]['CASH'] -= volume * price
-        self.participants[seller]['CASH'] += volume * price
+        self.participants[buyer]['portfolio']['CASH'] -= volume * price
+        self.participants[seller]['portfolio']['CASH'] += volume * price
+
+        # TODO: Better have the tests supply some dummy thing here and always demand that contacts are available
+        if self.participants[buyer]['contact']:
+            self.participants[buyer]['contact'].report_tx(OrderType.BID, symbol, volume, price, volume * price)
+        if self.participants[seller]['contact']:
+            self.participants[seller]['contact'].report_tx(OrderType.ASK, symbol, volume, price, volume * price)
 
     def trades_in(self, stock: str) -> bool:
         return stock in self.symbols

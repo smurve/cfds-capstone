@@ -1,8 +1,9 @@
 import abc
 from typing import List
 
-from markets.realistic import AbstractMarketMaker
-from markets.realistic import Clock
+from .AbstractMarketMaker import AbstractMarketMaker
+from .Clock import Clock
+from .Order import OrderType
 
 
 class AbstractInvestor(abc.ABC):
@@ -24,4 +25,8 @@ class AbstractInvestor(abc.ABC):
 
     @abc.abstractmethod
     def register_with(self, market_maker: AbstractMarketMaker, symbol: str):
+        pass
+
+    @abc.abstractmethod
+    def report_tx(self, order_type: OrderType, symbol: str, volume: float, price: float, amount: float):
         pass

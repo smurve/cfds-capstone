@@ -11,11 +11,12 @@ class AbstractMarketMaker(ABC):
     """
 
     @abstractmethod
-    def register_participant(self, uuid: UUID, portfolio: dict):
+    def register_participant(self, uuid: UUID, portfolio: dict, investor):
         """
         register a participant and her portfolio
         :param uuid: the uuid identifier of the participant
         :param portfolio: a map of ticker: amount with at least a 'CASH' position
+        :param investor: the investor
         """
 
     @abstractmethod

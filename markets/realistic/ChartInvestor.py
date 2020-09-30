@@ -18,8 +18,9 @@ class ChartInvestor(AbstractInvestor):
                  portfolio: Dict[str, float],
                  cash: float,
                  name: str = None,
-                 unique_id: uuid.UUID = uuid.uuid4()):
+                 unique_id: uuid.UUID = None):
 
+        unique_id = unique_id or uuid.uuid4()
         self.name = name
         self.unique_id = unique_id
 
@@ -30,6 +31,7 @@ class ChartInvestor(AbstractInvestor):
         self.cash_reserve = self.cash / 10
         self.max_volume_per_stock = self.cash / len(self.portfolio)
         self.n_orders_per_trade = 10
+        self.kappa = 0.5  # larger kappa means orders more offset from the value -> better deals
 
         self.market = market
         self.market_makers: Dict[str, AbstractMarketMaker] = {}
@@ -55,6 +57,9 @@ class ChartInvestor(AbstractInvestor):
 
     def register_with(self, market_maker: AbstractMarketMaker, symbol: str):
         self.market_makers[symbol] = market_maker
+        portfolio = deepcopy(self.portfolio)
+        portfolio['CASH'] = self.cash
+        market_maker.register_participant(self.unique_id, portfolio, self)
 
     def find_due_actions(self, clock: Clock):
         return [self.actions[f] for f in self.actions.keys() if clock.seconds % f == 0]
@@ -77,9 +82,12 @@ class ChartInvestor(AbstractInvestor):
             value = self.market.get_intrinsic_value(symbol, clock.day())
 
             if abs(1 - price / value) > self.action_threshold:
-                center = (price + value) / 2
-                tau = abs((price - value) / price)
+                tau = 2 * abs((price - value) / price)
                 order_type = OrderType.BID if price < value else OrderType.ASK
+
+                # kappa > 0 means a buffer from the value
+                center = (1 + self.kappa) * price - self.kappa * value
+
                 execution_type = ExecutionType.LIMIT
                 n = self.determine_n_shares(price)
                 expiry = self.determine_expiry()
@@ -95,3 +103,8 @@ class ChartInvestor(AbstractInvestor):
     @staticmethod
     def determine_expiry() -> int:
         return 10
+
+    def report_tx(self, order_type: OrderType, symbol: str, volume: float, price: float, amount: float):
+        self.cash += amount if order_type == OrderType.ASK else -amount
+        self.portfolio[symbol] += volume if order_type == OrderType.BID else -volume
+

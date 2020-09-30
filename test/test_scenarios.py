@@ -23,21 +23,29 @@ class ScenarioTest(TestCase):
         sc = self.get_scenario(clock)
 
         market = USITMarket({'TSMC': 186.73, 'AAPL': 201.22, 'TSLA': 462.4})
-        noise = .05
-        biases = {INTRINSIC_VALUE: lambda v: np.random.normal(v, v*noise)}
-        biased_market_view = BiasedMarketView(market, biases)
 
         mm = MarketMaker(market)
 
         market_makers = sc.register_market_makers(mm)
         self.assertIsNotNone(market_makers)
 
+        noise = .05
+        biases = {INTRINSIC_VALUE: lambda v: np.random.normal(v, v*noise)}
+        biased_market_view = BiasedMarketView(market, biases)
         warren = ChartInvestor(market=biased_market_view,
                                name='Warren Buffet',
                                portfolio={'TSMC': 5000},
                                cash=200_000)
 
-        investors = sc.register_investors(warren)
+        # Michael has a bias as to overestimate the intrinsic value
+        biases = {INTRINSIC_VALUE: lambda v: np.random.normal(1.03 * v, v * noise)}
+        biased_market_view = BiasedMarketView(market, biases)
+        michael = ChartInvestor(market=biased_market_view,
+                                name='Michael Burry',
+                                portfolio={'TSMC': 5000},
+                                cash=200_000)
+
+        investors = sc.register_investors(warren, michael)
 
         warren = investors[0]
         self.assertIsNotNone(warren)
