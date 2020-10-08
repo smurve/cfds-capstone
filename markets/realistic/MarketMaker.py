@@ -27,7 +27,7 @@ class MarketMaker(AbstractMarketMaker):
         """
         :param market: a market instance
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         stocks: List[Stock] = market.get_stocks()
 
         self.symbols = [stock.name for stock in stocks]
@@ -201,9 +201,6 @@ class MarketMaker(AbstractMarketMaker):
                 del self.orders[order_type][symbol]
 
     def execute_transaction(self, buyer, seller, symbol, volume, price):
-
-        self.debug(f"Participants: {list(self.participants.keys())}")
-        self.debug(f"looking up {buyer}'s portfolio: {self.participants.get(buyer)}")
 
         self.participants[buyer]['portfolio'][symbol] += volume
         self.participants[seller]['portfolio'][symbol] -= volume

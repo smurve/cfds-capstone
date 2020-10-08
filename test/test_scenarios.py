@@ -1,3 +1,4 @@
+import time
 from unittest import TestCase
 
 import pytest
@@ -31,16 +32,16 @@ class ScenarioTest(TestCase):
         market_makers = sc.register_market_makers(mm)
         self.assertIsNotNone(market_makers)
 
-        noise = .05
-        biases = {INTRINSIC_VALUE: lambda v: np.random.normal(v, v*noise)}
+        biases = {INTRINSIC_VALUE: lambda v: 0.96 * v}
         biased_market_view = BiasedMarketView(market, biases)
         warren = ChartInvestor(market=biased_market_view,
                                name='Warren Buffet',
                                portfolio={'TSMC': 5000},
                                cash=200_000)
 
-        # Michael has a bias as to overestimate the intrinsic value
-        biases = {INTRINSIC_VALUE: lambda v: np.random.normal(1.03 * v, v * noise)}
+        # Michael has a bias as to overestimate the intrinsic value (OK, I know he wouldn't - ever!)
+        biases = {INTRINSIC_VALUE: lambda v: 1.04 * v}
+        # biases = {INTRINSIC_VALUE: lambda v: np.random.normal(1.03 * v, v * noise)}
         biased_market_view = BiasedMarketView(market, biases)
         michael = ChartInvestor(market=biased_market_view,
                                 name='Michael Burry',
@@ -60,6 +61,10 @@ class ScenarioTest(TestCase):
 
         sc.tick(seconds=10)
 
+        time.sleep(.1)
+
+        self.assertEqual(190.28, market_makers[0].get_prices()['TSMC']['last'])
+
         pass
 
         # TODO: Introduce simple Momentum Investors
@@ -67,7 +72,6 @@ class ScenarioTest(TestCase):
         # TODO: Introduce node- and stock-specific market makers
         # TODO: Handle order expiry at market maker and investor side
         # TODO: Introduce stop loss strategy for investors
-        # TODO: Introduce central logging (return values from 'tick')
         # TODO: Introduce reporting from the market maker
 
 
@@ -78,6 +82,8 @@ class RayScenarioTest(ScenarioTest):
         ray.init()
 
     def tearDown(self) -> None:
+        import time
+        time.sleep(1)
         ray.shutdown()
 
     @staticmethod

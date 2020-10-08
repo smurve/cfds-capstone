@@ -5,7 +5,7 @@ from typing import Dict, List, Callable
 from .abstract import AbstractInvestor, AbstractMarket, AbstractMarketMaker
 from .Clock import Clock
 from .Order import OrderType, ExecutionType
-from .SynchronousMarketScenario import ScenarioError
+from .AbstractMarketScenario import ScenarioError
 from .TriangularOrderGenerator import TriangularOrderGenerator
 
 
@@ -17,7 +17,7 @@ class ChartInvestor(AbstractInvestor):
                  cash: float,
                  name: str):
 
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
 
         self.name = name
         self.portfolio = deepcopy(portfolio)
@@ -84,7 +84,9 @@ class ChartInvestor(AbstractInvestor):
                 raise ScenarioError(f'No market maker for stock {symbol}.')
 
             price = prices_dict[market_maker][symbol]['last']
+            self.debug(f'Price for {symbol}: {price}')
             value = self.market.get_intrinsic_value(symbol, clock.day())
+            self.debug(f'Value for {symbol}: {value}')
 
             if abs(1 - price / value) > self.action_threshold:
                 tau = 2 * abs((price - value) / price)

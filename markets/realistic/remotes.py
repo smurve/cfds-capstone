@@ -12,7 +12,7 @@ from .Order import Order
 class RayInvestor:
 
     def __init__(self, delegate: AbstractInvestor):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.delegate: AbstractInvestor = delegate
         self.logger.debug(f"This is {delegate.get_name()}: starting up.")
 
@@ -45,15 +45,12 @@ class RayInvestor:
 
 class AsyncInvestor(AbstractInvestor):
 
-    def get_qname(self) -> str:
-        return ray.get(self.actor_ref.get_qname.remote())
-
     def __init__(self, investor):
         if isinstance(investor, AbstractInvestor):
             self.actor_ref = RayInvestor.remote(investor)
         else:
             self.actor_ref = investor
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def tick(self, clock: Clock):
         self.logger.debug(f'{self.get_name()} here. Ticking remote delegate.')
@@ -78,6 +75,9 @@ class AsyncInvestor(AbstractInvestor):
     def osid(self):
         return ray.get(self.actor_ref.osid.remote())
 
+    def get_qname(self) -> str:
+        return ray.get(self.actor_ref.get_qname.remote())
+
 
 class AsyncMarketMaker(AbstractMarketMaker):
 
@@ -86,7 +86,7 @@ class AsyncMarketMaker(AbstractMarketMaker):
             self.actor_ref = RayMarketMaker.remote(delegate)
         else:
             self.actor_ref = delegate
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def register_participant(self, investor):
         if isinstance(investor, AsyncInvestor):
@@ -112,7 +112,7 @@ class RayMarketMaker:
 
     def __init__(self, delegate: AbstractMarketMaker):
         self.delegate = delegate
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def register_participant(self, investor):
         self.delegate.register_participant(AsyncInvestor(investor))

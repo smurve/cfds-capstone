@@ -1,14 +1,22 @@
 import abc
 from typing import List
+import logging
 
 from .abstract import AbstractInvestor, AbstractMarketMaker
 from .Clock import Clock
+
+
+class ScenarioError(ValueError):
+    pass
 
 
 class AbstractMarketScenario(abc.ABC):
 
     def __init__(self, clock: Clock):
         self.clock = clock
+        self.investors: List[AbstractInvestor] = []
+        self.market_makers: List[AbstractMarketMaker] = []
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     @abc.abstractmethod
     def register_investors(self, *investors: AbstractInvestor) -> List[AbstractInvestor]:
@@ -35,3 +43,15 @@ class AbstractMarketScenario(abc.ABC):
     @abc.abstractmethod
     def identify_investors(self):
         pass
+
+    def try_associate_market_makers(self, investor: AbstractInvestor):
+        for stock in investor.get_stock_symbols():
+            found = False
+            for market_maker in self.market_makers:
+                if market_maker.trades_in(stock):
+                    investor.register_with(market_maker, stock)
+                    market_maker.register_participant(investor)
+                    self.logger.debug(f'Registered investor {investor.osid()} with market maker {market_maker.osid()}')
+                    found = True
+            if not found:
+                raise ScenarioError(f"Can't find a market maker supporting stock {stock}")
