@@ -66,7 +66,7 @@ class AsyncInvestor(AbstractInvestor):
         return ray.get(self.actor_ref.register_with.remote(market_maker.actor_ref, symbol))
 
     def report_tx(self, order_type, symbol: str, volume: float, price: float, amount: float):
-        self.logger.debug(f'{self.get_name()} here. Reporting transaction to remote.')
+        self.logger.debug(f'{self.get_qname()} here. Reporting transaction to remote.')
         self.actor_ref.report_tx.remote(order_type, symbol, volume, price, amount)
 
     def get_portfolio(self):
