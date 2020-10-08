@@ -1,13 +1,13 @@
 from typing import Dict, List
+import numpy as np
 
-from markets.dynamic_market import Segment, GeoMarket, Stock
-from markets.stocks_model import rnd_sentiments
-from .AbstractMarket import AbstractMarket
+from .Stock import Segment, GeoMarket, Stock
+from .abstract import AbstractMarket
 
 
 class USITMarket(AbstractMarket):
 
-    def __init__(self, stocks: Dict[str, float]):
+    def __init__(self, stocks: Dict[str, float], noise):
         self.segments = {'IT': Segment('Information Technology', {0: (.0, -.002)})}
         self.geos = {'US': GeoMarket('US',  # A name
                                      {0: (.1, -0.0005),  # Market sentiment over time, starting slightly bullish
@@ -26,7 +26,8 @@ class USITMarket(AbstractMarket):
         self.stocks = {symbol: self.create_stock(symbol,
                                                  initial_value=stocks[symbol],
                                                  segment_betas={self.segments['IT']: self.beta_it},
-                                                 geo_betas={self.geos['US']: self.beta_us}
+                                                 geo_betas={self.geos['US']: self.beta_us},
+                                                 noise=noise
                                                  ) for symbol in stocks}
 
     def get_stocks(self) -> List[Stock]:
@@ -37,12 +38,28 @@ class USITMarket(AbstractMarket):
 
     @staticmethod
     def create_stock(symbol: str, initial_value: float,
-                     segment_betas: Dict[Segment, float], geo_betas: Dict[GeoMarket, float]) -> Stock:
+                     segment_betas: Dict[Segment, float],
+                     geo_betas: Dict[GeoMarket, float],
+                     noise: float) -> Stock:
         sentiments = rnd_sentiments()  # quarterly impacted stock sentiments
         e_cagr = 1e-4
         max_effect = 3.0
 
         return Stock(name=symbol, e_cagr=e_cagr, max_effect=max_effect, psi0=initial_value,
                      segments=segment_betas, markets=geo_betas,
-                     sentiments=sentiments, noise=.4)
+                     sentiments=sentiments, noise=noise)
 
+
+def rnd_sentiments(s_max=1, s_min=-10, n_quarters=16):
+    offset = np.random.randint(64)  # reporting day within the quarter
+    s_c = 0
+    q = 64  # a quarter
+    s = {0: (0, 0)}
+    for i in range(n_quarters):
+        dst = np.random.normal(.006, .005) / q
+        day = i * q + int(np.random.normal(5)) + offset
+        s[day] = (s_c, dst)
+        s_c = min(s_max, s_c + np.random.normal(0, .1))
+        s_c = max(s_min, s_c)
+    s[1024] = (0, 0)
+    return s

@@ -1,9 +1,11 @@
+import logging
 from typing import List
 
 from .AbstractMarketScenario import AbstractMarketScenario
-from .AbstractMarketMaker import AbstractMarketMaker
-from .AbstractInvestor import AbstractInvestor
+from .abstract import AbstractMarketMaker, AbstractInvestor
 from .Clock import Clock
+
+logger = logging.getLogger(__name__)
 
 
 class ScenarioError(ValueError):
@@ -35,7 +37,7 @@ class SynchronousMarketScenario(AbstractMarketScenario):
             investor.tick(self.clock.tick(seconds))
 
     def identify_investors(self):
-        return [inv.identify() for inv in self.investors]
+        return [inv.get_qname() for inv in self.investors]
 
     def try_associate_market_makers(self, investor: AbstractInvestor):
         for stock in investor.get_stock_symbols():
@@ -43,6 +45,8 @@ class SynchronousMarketScenario(AbstractMarketScenario):
             for market_maker in self.market_makers:
                 if market_maker.trades_in(stock):
                     investor.register_with(market_maker, stock)
+                    market_maker.register_participant(investor)
+                    logger.debug(f'Registered investor {investor.osid()} with market maker {market_maker.osid()}')
                     found = True
             if not found:
                 raise ScenarioError(f"Can't find a market maker supporting stock {stock}")

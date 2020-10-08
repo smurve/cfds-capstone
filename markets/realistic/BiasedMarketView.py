@@ -1,7 +1,7 @@
 from typing import List, Callable, Dict
 
-from .AbstractMarket import AbstractMarket
-from ..dynamic_market import Stock
+from .abstract import AbstractMarket
+from .Stock import Stock
 
 INTRINSIC_VALUE = 'INTRINSIC_VALUE'
 
@@ -15,7 +15,7 @@ class BiasedMarketView(AbstractMarket):
     def __init__(self, market: AbstractMarket, biases: Dict[str, Callable] = None):
         self.market = market
         self.biases = {
-            INTRINSIC_VALUE: biases.get(INTRINSIC_VALUE) or unbiased_float
+            INTRINSIC_VALUE: biases.get(INTRINSIC_VALUE) if biases else unbiased_float
         }
 
     def get_stocks(self) -> List[Stock]:

@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict
-from uuid import UUID
 
 from .Order import Order
 
@@ -11,11 +10,9 @@ class AbstractMarketMaker(ABC):
     """
 
     @abstractmethod
-    def register_participant(self, uuid: UUID, portfolio: dict, investor):
+    def register_participant(self, investor):
         """
         register a participant and her portfolio
-        :param uuid: the uuid identifier of the participant
-        :param portfolio: a map of ticker: amount with at least a 'CASH' position
         :param investor: the investor
         """
 
@@ -39,4 +36,10 @@ class AbstractMarketMaker(ABC):
         """
         :param stock: A stock symbol
         :return: wether or not this market maker trades with this stock
+        """
+
+    @abstractmethod
+    def osid(self) -> str:
+        """
+        :return: a string consisting of process id and instance id
         """

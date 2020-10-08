@@ -1,22 +1,22 @@
-import uuid
 from copy import deepcopy
 from unittest import TestCase
 
-from markets.realistic import Order, OrderType, ExecutionType, MarketMaker, USITMarket
+from markets.realistic import Order, OrderType, ExecutionType, MarketMaker, USITMarket, ChartInvestor, BiasedMarketView
+from markets.realistic import AbstractInvestor
 
 
 class MarketMakerTest(TestCase):
 
     def setUp(self) -> None:
-        self.order = Order(other_party=uuid.uuid4(), order_type=OrderType.ASK,
+        self.order = Order("anybody", order_type=OrderType.ASK,
                            execution_type=ExecutionType.LIMIT,
                            symbol='TSMC', amount=100, price=134, expires_in_seconds=10)
         self.symbols = {'TSMC': 100.0, 'NVDA': 200.0}
 
-    @staticmethod
-    def given_market_maker() -> MarketMaker:
+        self.market = USITMarket({'TSMC': 100., 'NVDA': 200.}, noise=0.)
 
-        return MarketMaker(USITMarket({'TSMC': 100., 'NVDA': 200.}))
+    def given_market_maker(self) -> MarketMaker:
+        return MarketMaker(self.market)
 
     def given_order(self, **kwargs):
         order = deepcopy(self.order)
@@ -24,13 +24,22 @@ class MarketMakerTest(TestCase):
             order.__setattr__(item, kwargs[item])
         if order.execution_type == ExecutionType.MARKET:
             order.price = None
+        if not isinstance(order.other_party, str):
+            order.other_party = str(order.other_party)
         return order
+
+    def given_investor(self, symbol: str) -> AbstractInvestor:
+        return ChartInvestor(market=BiasedMarketView(self.market),
+                             name='Michael Burry',
+                             portfolio={symbol: 1000},
+                             cash=200_000)
 
     def test_register_participant_with_unknown_symbol(self):
         unknown_symbol = 'AAPL'
         mm = self.given_market_maker()
+        inv = self.given_investor(unknown_symbol)
         try:
-            mm.register_participant(uuid.uuid4(), {unknown_symbol: 100}, None)
+            mm.register_participant(inv)
             self.fail("Should have raised ValueError")
         except ValueError as ve:
             self.assertTrue("Illegal portfolio" in str(ve))
@@ -87,36 +96,36 @@ class MarketMakerTest(TestCase):
 
     def test_perfect_match(self):
         symbol = 'TSMC'
-        buyer, seller = uuid.uuid4(), uuid.uuid4()
+        buyer, seller = self.given_investor(symbol), self.given_investor(symbol)
         mm = self.given_market_maker()
-        mm.register_participant(buyer, {symbol: 1000, 'CASH': 200_000}, None)
-        mm.register_participant(seller, {symbol: 1000, 'CASH': 200_000}, None)
+        mm.register_participant(buyer)
+        mm.register_participant(seller)
 
-        sell = self.given_order(order_type=OrderType.ASK, other_party=seller)
-        buy = self.given_order(order_type=OrderType.BID, other_party=buyer)
+        sell = self.given_order(order_type=OrderType.ASK, other_party=str(seller))
+        buy = self.given_order(order_type=OrderType.BID, other_party=str(buyer))
 
         # Whoever is first, we should have a perfect match
         for pair in [[buy, sell], [sell, buy]]:
-            prev_buyer = deepcopy(mm.participants[buyer])
-            prev_seller = deepcopy(mm.participants[seller])
+            prev_buyer = deepcopy(mm.participants[str(buyer)])
+            prev_seller = deepcopy(mm.participants[str(seller)])
 
             mm.submit_orders(pair)
 
-            self.assertEqual(mm.participants[buyer]['portfolio']['CASH'],
+            self.assertEqual(mm.participants[str(buyer)]['portfolio']['CASH'],
                              prev_buyer['portfolio']['CASH'] - sell.amount * sell.price)
-            self.assertEqual(mm.participants[seller]['portfolio']['CASH'],
+            self.assertEqual(mm.participants[str(seller)]['portfolio']['CASH'],
                              prev_seller['portfolio']['CASH'] + sell.amount * sell.price)
-            self.assertEqual(mm.participants[buyer]['portfolio'][symbol],
+            self.assertEqual(mm.participants[str(buyer)]['portfolio'][symbol],
                              prev_buyer['portfolio'][symbol] + sell.amount)
-            self.assertEqual(mm.participants[seller]['portfolio'][symbol],
+            self.assertEqual(mm.participants[str(seller)]['portfolio'][symbol],
                              prev_seller['portfolio'][symbol] - sell.amount)
 
     def test_multi_match_buy(self):
-        buyer, seller1, seller2 = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        buyer, seller1, seller2 = [self.given_investor('TSMC') for _ in range(3)]
         mm = self.given_market_maker()
-        mm.register_participant(buyer, {'TSMC': 1000, 'CASH': 200_000}, None)
-        mm.register_participant(seller1, {'TSMC': 1000, 'CASH': 200_000}, None)
-        mm.register_participant(seller2, {'TSMC': 1000, 'CASH': 200_000}, None)
+        mm.register_participant(buyer)
+        mm.register_participant(seller1)
+        mm.register_participant(seller2)
 
         sell0 = self.given_order(order_type=OrderType.ASK, other_party=seller1,
                                  price=140, amount=100)
@@ -137,17 +146,17 @@ class MarketMakerTest(TestCase):
         mm.submit_orders([buy])
 
         # seller2 sold her 60 shares for 100$ each
-        self.assertEqual(mm.participants[seller2]['portfolio'], {
+        self.assertEqual(mm.participants[str(seller2)]['portfolio'], {
             'TSMC': 1000 - 60,
             'CASH': 200_000 + 60 * 100})
 
         # seller1 sold 50 for 100 and 90 for 120
-        self.assertEqual(mm.participants[seller1]['portfolio'], {
+        self.assertEqual(mm.participants[str(seller1)]['portfolio'], {
             'TSMC': 1000 - 50 - 90,
             'CASH': 200_000 + 50 * 100 + 90 * 120})
 
         # buyer bought 110 for 100 and the remining 90 for 120
-        self.assertEqual(mm.participants[buyer]['portfolio'], {
+        self.assertEqual(mm.participants[str(buyer)]['portfolio'], {
             'TSMC': 1000 + 200,
             'CASH': 200_000 - 110 * 100 - 90 * 120})
 
@@ -157,7 +166,7 @@ class MarketMakerTest(TestCase):
 
         # buyer bought another 10 for 120
         # buyer bought 110 for 100 and the remining 90 for 120
-        self.assertEqual(mm.participants[buyer]['portfolio'], {
+        self.assertEqual(mm.participants[str(buyer)]['portfolio'], {
             'TSMC': 1000 + 200 + 10,
             'CASH': 200_000 - 110 * 100 - 90 * 120 - 10 * 120})
 
@@ -165,11 +174,11 @@ class MarketMakerTest(TestCase):
         self.assertEqual(mm.orders[OrderType.BID][symbol][130][0].amount, 40)
 
     def test_multi_match_sell(self):
-        seller, buyer1, buyer2 = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        seller, buyer1, buyer2 = [self.given_investor('TSMC') for _ in range(3)]
         mm = self.given_market_maker()
-        mm.register_participant(seller, {'TSMC': 1000, 'CASH': 200_000}, None)
-        mm.register_participant(buyer1, {'TSMC': 1000, 'CASH': 200_000}, None)
-        mm.register_participant(buyer2, {'TSMC': 1000, 'CASH': 200_000}, None)
+        mm.register_participant(seller)
+        mm.register_participant(buyer1)
+        mm.register_participant(buyer2)
 
         buy0 = self.given_order(order_type=OrderType.BID, other_party=buyer1,
                                 price=100, amount=100)
@@ -191,17 +200,17 @@ class MarketMakerTest(TestCase):
         mm.submit_orders([sell])
 
         # buyer2 bought her 60 shares for 140$ each
-        self.assertEqual(mm.participants[buyer2]['portfolio'], {
+        self.assertEqual(mm.participants[str(buyer2)]['portfolio'], {
             'TSMC': 1000 + 60,
             'CASH': 200_000 - 60 * 110})
 
         # buyer1 bought 50 for 110 and 90 for 120
-        self.assertEqual(mm.participants[buyer1]['portfolio'], {
+        self.assertEqual(mm.participants[str(buyer1)]['portfolio'], {
             'TSMC': 1000 + 50 + 90,
             'CASH': 200_000 - 50 * 110 - 90 * 110})
 
         # seller sold 110 for 140 and the remining 90 for 120
-        self.assertEqual(mm.participants[seller]['portfolio'], {
+        self.assertEqual(mm.participants[str(seller)]['portfolio'], {
             'TSMC': 1000 - 200,
             'CASH': 200_000 + 110 * 110 + 90 * 110})
 
@@ -210,7 +219,7 @@ class MarketMakerTest(TestCase):
         mm.submit_orders([sell])
 
         # seller sold another 10 for 110
-        self.assertEqual(mm.participants[seller]['portfolio'], {
+        self.assertEqual(mm.participants[str(seller)]['portfolio'], {
             'TSMC': 1000 - 200 - 10,
             'CASH': 200_000 + 110 * 110 + 90 * 110 + 10 * 110})
 
@@ -218,12 +227,12 @@ class MarketMakerTest(TestCase):
         self.assertEqual(mm.orders[OrderType.ASK][symbol][110][0].amount, 40)
 
     def test_market_sell_order(self):
-        buyer1, buyer2, seller1, seller2 = uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        buyer1, buyer2, seller1, seller2 = [self.given_investor('TSMC') for _ in range(4)]
         mm = self.given_market_maker()
-        mm.register_participant(buyer1, {'TSMC': 1000, 'NVDA': 1000, 'CASH': 200_000}, None)
-        mm.register_participant(buyer2, {'TSMC': 1000, 'NVDA': 1000, 'CASH': 200_000}, None)
-        mm.register_participant(seller1, {'TSMC': 1000, 'NVDA': 1000, 'CASH': 200_000}, None)
-        mm.register_participant(seller2, {'TSMC': 1000, 'NVDA': 1000, 'CASH': 200_000}, None)
+        mm.register_participant(buyer1)
+        mm.register_participant(buyer2)
+        mm.register_participant(seller1)
+        mm.register_participant(seller2)
 
         sell_l = self.given_order(order_type=OrderType.ASK, other_party=seller1,
                                   amount=200, price=120)
@@ -244,29 +253,25 @@ class MarketMakerTest(TestCase):
         # 1st tx: s1 -> b1 50 @ 120
         # 2nd tx: s1 -> b2 40 @ 110
         # 3rd tx: s2 -> b2 20 @ 110
-        self.assertEqual(mm.participants[seller1]['portfolio'], {
+        self.assertEqual(mm.participants[str(seller1)]['portfolio'], {
             'TSMC': 1000 - (40 + 50),
-            'NVDA': 1000,
             'CASH': 200_000 + 40 * 110 + 50 * 120})
-        self.assertEqual(mm.participants[seller2]['portfolio'], {
+        self.assertEqual(mm.participants[str(seller2)]['portfolio'], {
             'TSMC': 1000 - 20,
-            'NVDA': 1000,
             'CASH': 200_000 + 20 * 110})
-        self.assertEqual(mm.participants[buyer1]['portfolio'], {
+        self.assertEqual(mm.participants[str(buyer1)]['portfolio'], {
             'TSMC': 1000 + 50,
-            'NVDA': 1000,
             'CASH': 200_000 - 50 * 120})
-        self.assertEqual(mm.participants[buyer2]['portfolio'], {
+        self.assertEqual(mm.participants[str(buyer2)]['portfolio'], {
             'TSMC': 1000 + (40 + 20),
-            'NVDA': 1000,
             'CASH': 200_000 - (40 + 20) * 110})
 
     def test_market_buy_order(self):
-        buyer1, buyer2, seller1, seller2 = uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        buyer1, buyer2, seller1, seller2 = [self.given_investor('TSMC') for _ in range(4)]
         mm = self.given_market_maker()
 
-        mm.register_participant(buyer1, {'TSMC': 1000, 'CASH': 200_000}, None)
-        mm.register_participant(buyer2, {'TSMC': 1000, 'CASH': 200_000}, None)
+        mm.register_participant(buyer1)
+        mm.register_participant(buyer2)
         buy_l = self.given_order(order_type=OrderType.BID, other_party=buyer1,
                                  amount=200, price=120)
         buy_m1 = self.given_order(order_type=OrderType.BID, other_party=buyer1,
@@ -274,12 +279,12 @@ class MarketMakerTest(TestCase):
         buy_m2 = self.given_order(order_type=OrderType.BID, other_party=buyer2,
                                   amount=70, execution_type=ExecutionType.MARKET)
 
-        mm.register_participant(seller1, {'TSMC': 1000, 'CASH': 200_000}, None)
+        mm.register_participant(seller1)
         # this will find a matching limit order
         sell1 = self.given_order(order_type=OrderType.ASK, other_party=seller1,
                                  amount=50, price=110)
 
-        mm.register_participant(seller2, {'TSMC': 1000, 'CASH': 200_000}, None)
+        mm.register_participant(seller2)
         sell2 = self.given_order(order_type=OrderType.ASK, other_party=seller2,
                                  amount=100, price=130)
 
@@ -288,31 +293,31 @@ class MarketMakerTest(TestCase):
         # 1st tx: s1 -> b1 - 50 @ 110
         # 2nd tx: s2 -> b1 - 40 @ 130
         # 3rd tx: s2 -> b2 - 60 @ 130
-        self.assertEqual(mm.participants[buyer1]['portfolio'], {
+        self.assertEqual(mm.participants[str(buyer1)]['portfolio'], {
             'TSMC': 1000 + 90,
             'CASH': 200_000 - 50 * 110 - 40 * 130
         })
-        self.assertEqual(mm.participants[buyer2]['portfolio'], {
+        self.assertEqual(mm.participants[str(buyer2)]['portfolio'], {
             'TSMC': 1000 + 60,
             'CASH': 200_000 - 60 * 130
         })
-        self.assertEqual(mm.participants[seller1]['portfolio'], {
+        self.assertEqual(mm.participants[str(seller1)]['portfolio'], {
             'TSMC': 1000 - 50,
             'CASH': 200_000 + 50 * 110
         })
-        self.assertEqual(mm.participants[seller2]['portfolio'], {
+        self.assertEqual(mm.participants[str(seller2)]['portfolio'], {
             'TSMC': 1000 - 100,
             'CASH': 200_000 + (60 + 40) * 130
         })
 
     def test_large_market_order_shifts_price(self):
 
-        buyer1, seller1, buyer2, seller2 = uuid.uuid4(), uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        buyer1, seller1, buyer2, seller2 = [self.given_investor('TSMC') for _ in range(4)]
         mm = self.given_market_maker()
-        mm.register_participant(buyer1, {'TSMC': 1000, 'CASH': 200_000}, None)
-        mm.register_participant(seller1, {'TSMC': 1000, 'CASH': 200_000}, None)
-        mm.register_participant(buyer2, {'TSMC': 1000, 'CASH': 200_000}, None)
-        mm.register_participant(seller2, {'TSMC': 1000, 'CASH': 200_000}, None)
+        mm.register_participant(buyer1)
+        mm.register_participant(seller1)
+        mm.register_participant(buyer2)
+        mm.register_participant(seller2)
 
         buys = [self.given_order(order_type=OrderType.BID, other_party=buyer1,
                                  amount=50, price=100 + inc) for inc in range(10)]
@@ -329,12 +334,12 @@ class MarketMakerTest(TestCase):
                                  amount=300, execution_type=ExecutionType.MARKET)
 
         amount_1 = 50 * (109 + 108 + 107 + 106 + 105 + 104)
-        self.assertEqual(mm.participants[buyer1]['portfolio'], {
+        self.assertEqual(mm.participants[str(buyer1)]['portfolio'], {
             'TSMC': 1300,
             'CASH': 200_000 - amount_1
         })
 
-        self.assertEqual(mm.participants[seller1]['portfolio'], {
+        self.assertEqual(mm.participants[str(seller1)]['portfolio'], {
             'TSMC': 700,
             'CASH': 200_000 + amount_1
         })
@@ -344,12 +349,12 @@ class MarketMakerTest(TestCase):
         mm.submit_orders(sells + [buy_m])
 
         amount_2 = 50 * (110 + 111 + 112 + 113 + 114 + 115)
-        self.assertEqual(mm.participants[buyer2]['portfolio'], {
+        self.assertEqual(mm.participants[str(buyer2)]['portfolio'], {
             'TSMC': 1300,
             'CASH': 200_000 - amount_2
         })
 
-        self.assertEqual(mm.participants[seller2]['portfolio'], {
+        self.assertEqual(mm.participants[str(seller2)]['portfolio'], {
             'TSMC': 700,
             'CASH': 200_000 + amount_2
         })

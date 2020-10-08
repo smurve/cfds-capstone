@@ -1,5 +1,3 @@
-from uuid import UUID
-
 import numpy as np
 import pandas as pd
 
@@ -13,7 +11,7 @@ class TriangularOrderGenerator:
     and broader distribution of order prices despite a limited number of market participants.
     """
 
-    def __init__(self, client_id: UUID):
+    def __init__(self, client_id: str):
         self.client_id = client_id
 
     def create_orders(self, p: float, tau: float, n: float, order_type: OrderType, n_orders: int):

@@ -4,7 +4,9 @@ import pytest
 import ray
 import numpy as np
 
-from markets.realistic import *
+from markets.realistic import (
+    AbstractMarketScenario, SynchronousMarketScenario, RayMarketScenario,
+    ChartInvestor, USITMarket, MarketMaker)
 from markets.realistic.BiasedMarketView import INTRINSIC_VALUE, BiasedMarketView
 from markets.realistic.Clock import Clock
 
@@ -22,7 +24,7 @@ class ScenarioTest(TestCase):
 
         sc = self.get_scenario(clock)
 
-        market = USITMarket({'TSMC': 186.73, 'AAPL': 201.22, 'TSLA': 462.4})
+        market = USITMarket({'TSMC': 186.73, 'AAPL': 201.22, 'TSLA': 462.4}, noise=0.)
 
         mm = MarketMaker(market)
 

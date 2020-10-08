@@ -1,8 +1,6 @@
-import datetime as dt
 from dataclasses import dataclass
 from enum import Enum
 from typing import Tuple
-from uuid import UUID
 
 
 class OrderType(Enum):
@@ -23,7 +21,7 @@ class ExecutionType(Enum):
 
 @dataclass()
 class Order:
-    other_party: UUID
+    other_party: str
     order_type: OrderType
     execution_type: ExecutionType
     symbol: str

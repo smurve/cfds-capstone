@@ -1,14 +1,12 @@
-import uuid
+import logging
 from copy import deepcopy
 from typing import Dict, List, Callable
 
-from .SynchronousMarketScenario import ScenarioError
-from .AbstractMarketMaker import AbstractMarketMaker
+from .abstract import AbstractInvestor, AbstractMarket, AbstractMarketMaker
 from .Clock import Clock
-from .AbstractMarket import AbstractMarket
-from .TriangularOrderGenerator import TriangularOrderGenerator
 from .Order import OrderType, ExecutionType
-from .AbstractInvestor import AbstractInvestor
+from .SynchronousMarketScenario import ScenarioError
+from .TriangularOrderGenerator import TriangularOrderGenerator
 
 
 class ChartInvestor(AbstractInvestor):
@@ -17,13 +15,11 @@ class ChartInvestor(AbstractInvestor):
                  market: AbstractMarket,
                  portfolio: Dict[str, float],
                  cash: float,
-                 name: str = None,
-                 unique_id: uuid.UUID = None):
+                 name: str):
 
-        unique_id = unique_id or uuid.uuid4()
+        self.logger = logging.getLogger(__name__)
+
         self.name = name
-        self.unique_id = unique_id
-
         self.portfolio = deepcopy(portfolio)
         self.cash = cash
 
@@ -36,36 +32,43 @@ class ChartInvestor(AbstractInvestor):
         self.market = market
         self.market_makers: Dict[str, AbstractMarketMaker] = {}
         self.actions: Dict[int, Callable] = self.define_actions()
-        self.order_generator = TriangularOrderGenerator(self.unique_id)
+        self.order_generator = None
+        self.debug("Starting up. OSID may not reflect final host process yet.")
+
+    def create_orders_list(self, symbol: str, p: float, tau: float, n: float,
+                           order_type: OrderType, execution_type: ExecutionType,
+                           expire_in_seconds: int, n_orders: int):
+
+        # Lazily initialize order generator to get the correct ray-deployed qname
+        if self.order_generator is None:
+            self.order_generator = TriangularOrderGenerator(self.get_qname())
+
+        return self.order_generator.create_orders_list(symbol, p, tau, n, order_type, execution_type,
+                                                       expire_in_seconds, n_orders)
 
     def define_actions(self) -> Dict[int, Callable]:
         # something to start with
         return {1: self.act_on_price_vs_value}
 
-    def __repr__(self):
-        return self.name if self.name else str(self.unique_id)
-
     def tick(self, clock: Clock) -> str:
+        self.debug('Received tick.')
         self.observe_and_act(clock)
         return 'OK'
-
-    def identify(self) -> str:
-        return self.name if self.name else self.unique_id
 
     def get_stock_symbols(self) -> List[str]:
         return list(self.portfolio.keys())
 
     def register_with(self, market_maker: AbstractMarketMaker, symbol: str):
+        self.debug(f"Registering for {symbol} with market maker: {market_maker.osid()}")
         self.market_makers[symbol] = market_maker
-        portfolio = deepcopy(self.portfolio)
-        portfolio['CASH'] = self.cash
-        market_maker.register_participant(self.unique_id, portfolio, self)
 
     def find_due_actions(self, clock: Clock):
         return [self.actions[f] for f in self.actions.keys() if clock.seconds % f == 0]
 
     def observe_and_act(self, clock: Clock):
-        for action in self.find_due_actions(clock):
+        actions = self.find_due_actions(clock)
+        for action in actions:
+            self.debug(f"Performing action: {action}")
             action(clock)
 
     def act_on_price_vs_value(self, clock: Clock):
@@ -74,8 +77,10 @@ class ChartInvestor(AbstractInvestor):
                        for market_maker in self.market_makers.values()}
 
         for symbol in self.portfolio.keys():
+            self.debug(f"Looking at {symbol}")
             market_maker = self.market_makers.get(symbol)
             if not market_maker:
+                self.error(f"No market maker for {symbol}")
                 raise ScenarioError(f'No market maker for stock {symbol}.')
 
             price = prices_dict[market_maker][symbol]['last']
@@ -91,10 +96,13 @@ class ChartInvestor(AbstractInvestor):
                 execution_type = ExecutionType.LIMIT
                 n = self.determine_n_shares(price)
                 expiry = self.determine_expiry()
-                orders = self.order_generator.create_orders_list(symbol, center, tau, n, order_type,
-                                                                 execution_type, expiry, self.n_orders_per_trade)
+                orders = self.create_orders_list(symbol, center, tau, n, order_type,
+                                                 execution_type, expiry, self.n_orders_per_trade)
 
+                self.debug(f'Submitting {order_type.value} orders.')
                 market_maker.submit_orders(orders)
+            else:
+                self.debug(f"Not sumitting oder: {abs(1 - price / value)} not above {self.action_threshold}")
 
     def determine_n_shares(self, price) -> float:
         volume = max(0., min(self.max_volume_per_stock, self.cash - self.cash_reserve))
@@ -105,6 +113,32 @@ class ChartInvestor(AbstractInvestor):
         return 10
 
     def report_tx(self, order_type: OrderType, symbol: str, volume: float, price: float, amount: float):
+        self.debug(f"Updating portfolio position for {symbol}")
         self.cash += amount if order_type == OrderType.ASK else -amount
         self.portfolio[symbol] += volume if order_type == OrderType.BID else -volume
+        self.debug(f"{int(volume)} shares at {price}.")
+        self.debug(f"cash: {self.cash} - new number of shares: {self.portfolio[symbol]}.")
 
+    def get_portfolio(self):
+        portfolio = deepcopy(self.portfolio)
+        portfolio['CASH'] = self.cash
+        return portfolio
+
+    def debug(self, msg: str):
+        self.logger.debug(f"{str(self)}): {msg}")
+
+    def error(self, msg: str):
+        self.logger.error(f"{str(self)}):: {msg}")
+
+    def __repr__(self):
+        return f'{self.get_qname()}'
+
+    def get_name(self):
+        return f"{self.name}"
+
+    def get_qname(self):
+        return f"{self.name} {self.osid()}"
+
+    def osid(self) -> str:
+        import os
+        return f'{os.getpid()} - {id(self)}'

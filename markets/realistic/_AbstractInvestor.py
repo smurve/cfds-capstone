@@ -9,6 +9,10 @@ from .Order import OrderType
 class AbstractInvestor(abc.ABC):
 
     @abc.abstractmethod
+    def get_name(self):
+        pass
+
+    @abc.abstractmethod
     def tick(self, clock: Clock):
         pass
 
@@ -29,4 +33,12 @@ class AbstractInvestor(abc.ABC):
 
     @abc.abstractmethod
     def report_tx(self, order_type: OrderType, symbol: str, volume: float, price: float, amount: float):
+        pass
+
+    @abc.abstractmethod
+    def get_portfolio(self):
+        pass
+
+    @abc.abstractmethod
+    def osid(self) -> str:
         pass

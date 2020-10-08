@@ -1,12 +1,11 @@
+import logging
 from collections import OrderedDict
-from typing import Optional, Dict, List, Tuple, Any
-from uuid import UUID
 from copy import deepcopy
+from typing import Optional, Dict, List, Tuple, Any
 
-from .AbstractMarketMaker import AbstractMarketMaker
+from .abstract import AbstractMarket, AbstractMarketMaker, AbstractInvestor
 from .Order import Order, OrderType, ExecutionType
-from .AbstractMarket import AbstractMarket
-from ..dynamic_market import Stock
+from .Stock import Stock
 
 
 class MarketMaker(AbstractMarketMaker):
@@ -28,13 +27,14 @@ class MarketMaker(AbstractMarketMaker):
         """
         :param market: a market instance
         """
+        self.logger = logging.getLogger(__name__)
         stocks: List[Stock] = market.get_stocks()
 
         self.symbols = [stock.name for stock in stocks]
         self.mrtxp = {stock.name: stock.psi(0) for stock in stocks}
 
         # like {uuid: {'portfolio': {'TSLA': 1200}, 'contact': AbstractInvestor}
-        self.participants: Dict[UUID, Dict[str, Any]] = {}
+        self.participants: Dict[str, Dict[str, Any]] = {}
 
         self.orders: Dict[OrderType, Dict[str, OrderedDict]] = {}
         self.market_orders: Dict[OrderType, Dict[str, List[Order]]] = {}
@@ -49,6 +49,7 @@ class MarketMaker(AbstractMarketMaker):
             OrderType.BID: {symbol: None for symbol in stocks},  # highest bid
             OrderType.ASK: {symbol: None for symbol in stocks}  # lowest ask
         }
+        self.logger.debug("This is MarketMaker: Starting up.")
 
     def get_prices(self) -> Dict[str, Dict[str, float]]:
         return {
@@ -62,12 +63,25 @@ class MarketMaker(AbstractMarketMaker):
         candidate = self.candidates[order_type].get(symbol)
         return candidate.price if candidate else None
 
-    def register_participant(self, uuid: UUID, portfolio: Dict[str, float], investor):
+    def register_participant(self, investor: AbstractInvestor):
+        self.debug(f"Registering participant {investor.get_qname()}")
+        portfolio = investor.get_portfolio()
         if not all([key in self.symbols for key in portfolio.keys() if key != 'CASH']):
+            self.logger.error(f"Can't register {investor.get_qname()}: Not all given assets are supported here.")
             raise ValueError("Illegal portfolio: Not all given assets are supported here.")
-        self.participants[uuid] = {'portfolio': portfolio, 'contact': investor}
+        self.participants[investor.get_qname()] = {'portfolio': portfolio, 'contact': investor}
+        self.debug(f"Registered participant {investor.get_qname()}")
+
+    def debug(self, msg: str):
+        self.logger.debug(f'MarketMaker: {msg}')
+
+    def error(self, msg: str):
+        self.logger.error(f'MarketMaker: {msg}')
 
     def submit_orders(self, orders: List[Order]):
+        self.debug(f"Received {len(orders)} orders")
+        self.debug(f'{orders[0].order_type.value} from {orders[0].price} to {orders[-1].price}')
+        reg_count, proc_count = 0, 0
         for order in orders:
             symbol = order.symbol
             if symbol not in self.symbols:
@@ -77,8 +91,11 @@ class MarketMaker(AbstractMarketMaker):
             candidate = self.candidates[order.order_type.other()].get(symbol)
             if candidate is None:
                 self.register_order(order)
+                reg_count += 1
             else:
                 self.process_order(order, candidate)
+                proc_count += 1
+        self.debug(f'registered {reg_count} - processed {proc_count} orders')
 
     def register_order(self, order: Order):
         order_type, symbol, price = order.order_type, order.symbol, order.price
@@ -119,6 +136,7 @@ class MarketMaker(AbstractMarketMaker):
         tx_volume = min(ask.amount, bid.amount)
         bid.amount -= tx_volume
         ask.amount -= tx_volume
+        self.logger.debug(f'Executing trade: {tx_volume} shares of {bid.symbol} for {tx_price}$')
         self.execute_transaction(buyer=bid.other_party,
                                  seller=ask.other_party,
                                  symbol=bid.symbol,
@@ -183,6 +201,10 @@ class MarketMaker(AbstractMarketMaker):
                 del self.orders[order_type][symbol]
 
     def execute_transaction(self, buyer, seller, symbol, volume, price):
+
+        self.debug(f"Participants: {list(self.participants.keys())}")
+        self.debug(f"looking up {buyer}'s portfolio: {self.participants.get(buyer)}")
+
         self.participants[buyer]['portfolio'][symbol] += volume
         self.participants[seller]['portfolio'][symbol] -= volume
 
@@ -190,10 +212,19 @@ class MarketMaker(AbstractMarketMaker):
         self.participants[seller]['portfolio']['CASH'] += volume * price
 
         # TODO: Better have the tests supply some dummy thing here and always demand that contacts are available
-        if self.participants[buyer]['contact']:
-            self.participants[buyer]['contact'].report_tx(OrderType.BID, symbol, volume, price, volume * price)
-        if self.participants[seller]['contact']:
-            self.participants[seller]['contact'].report_tx(OrderType.ASK, symbol, volume, price, volume * price)
+        buyer_ref = self.participants[buyer]['contact']
+        if buyer_ref:
+            self.debug(f'Reporting buy to {buyer_ref.get_qname()}')
+            buyer_ref.report_tx(OrderType.BID, symbol, volume, price, volume * price)
+
+        seller_ref = self.participants[seller]['contact']
+        if seller_ref:
+            self.debug(f'Reporting sell to {seller_ref.get_name()} ({seller_ref.osid()}')
+            seller_ref.report_tx(OrderType.ASK, symbol, volume, price, volume * price)
 
     def trades_in(self, stock: str) -> bool:
         return stock in self.symbols
+
+    def osid(self) -> str:
+        import os
+        return f'{os.getpid()} - {id(self)}'

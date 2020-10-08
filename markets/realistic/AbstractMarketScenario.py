@@ -1,8 +1,7 @@
 import abc
 from typing import List
 
-from .AbstractInvestor import AbstractInvestor
-from .AbstractMarketMaker import AbstractMarketMaker
+from .abstract import AbstractInvestor, AbstractMarketMaker
 from .Clock import Clock
 
 
