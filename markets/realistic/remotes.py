@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 import ray
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 from .Clock import Clock
 from .abstract import AbstractInvestor, AbstractMarketMaker
@@ -100,6 +100,9 @@ class AsyncMarketMaker(AbstractMarketMaker):
     def get_prices(self) -> Dict[str, Dict[str, float]]:
         return ray.get(self.actor_ref.get_prices.remote())
 
+    def get_order_book(self) -> Dict[float, Tuple[str, float]]:
+        return ray.get(self.actor_ref.get_order_book.remote())
+
     def trades_in(self, stock: str) -> bool:
         return ray.get(self.actor_ref.trades_in.remote(stock))
 
@@ -125,6 +128,9 @@ class RayMarketMaker:
 
     def get_prices(self) -> Dict[str, Dict[str, float]]:
         return self.delegate.get_prices()
+
+    def get_order_book(self) -> Dict[float, Tuple[str, float]]:
+        return self.delegate.get_order_book()
 
     def trades_in(self, stock: str) -> bool:
         return self.delegate.trades_in(stock)

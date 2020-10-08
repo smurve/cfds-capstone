@@ -27,9 +27,7 @@ class ScenarioTest(TestCase):
 
         market = USITMarket({'TSMC': 186.73, 'AAPL': 201.22, 'TSLA': 462.4}, noise=0.)
 
-        mm = MarketMaker(market)
-
-        market_makers = sc.register_market_makers(mm)
+        market_makers = sc.register_market_makers(MarketMaker(market))
         self.assertIsNotNone(market_makers)
 
         biases = {INTRINSIC_VALUE: lambda v: 0.96 * v}
@@ -64,6 +62,10 @@ class ScenarioTest(TestCase):
         time.sleep(.1)
 
         self.assertEqual(190.28, market_makers[0].get_prices()['TSMC']['last'])
+
+        order_book = market_makers[0].get_order_book()
+
+        self.assertEqual(15, len(order_book['TSMC']))
 
         pass
 

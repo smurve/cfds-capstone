@@ -59,6 +59,18 @@ class MarketMaker(AbstractMarketMaker):
             for symbol in self.symbols
         }
 
+    def get_order_book(self) -> Dict[str, Dict[float, Tuple[str, float]]]:
+        order_book = {}
+        for symbol in self.symbols:
+            chapter = {}
+            for order_type in self.orders:
+                if self.orders[order_type].get(symbol):
+                    for price, orders in self.orders[order_type][symbol].items():
+                        chapter[price] = (sum([order.amount for order in orders]),
+                                          order_type.value[0])
+            order_book[symbol] = chapter
+        return order_book
+
     def get_candidate_price(self, order_type: OrderType, symbol: str):
         candidate = self.candidates[order_type].get(symbol)
         return candidate.price if candidate else None

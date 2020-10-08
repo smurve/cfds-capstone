@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import abc
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 from .Clock import Clock
 from .Order import Order, OrderType
@@ -85,6 +85,12 @@ class AbstractMarketMaker(abc.ABC):
         Get bid-ask and last tx prices.
         :return: Dict of Dict of like so:
             {'SYMBOL': {'bid': 100, 'ask': 101, 'last': 100.3}, ...}
+        """
+
+    @abc.abstractmethod
+    def get_order_book(self) -> Dict[str, Dict[float, Tuple[str, float]]]:
+        """
+        :return: a dict of all order amount/price pairs
         """
 
     @abc.abstractmethod
