@@ -3,6 +3,7 @@ from collections import OrderedDict
 from copy import deepcopy
 from typing import Optional, Dict, List, Tuple, Any
 
+from . import Clock
 from .abstract import AbstractMarket, AbstractMarketMaker, AbstractInvestor
 from .Order import Order, OrderType, ExecutionType
 from .Stock import Stock
@@ -49,7 +50,7 @@ class MarketMaker(AbstractMarketMaker):
             OrderType.BID: {symbol: None for symbol in stocks},  # highest bid
             OrderType.ASK: {symbol: None for symbol in stocks}  # lowest ask
         }
-        self.logger.debug("This is MarketMaker: Starting up.")
+        self.logger.info(f"Starting up. OSID {self.osid()} may not reflect actual host process yet.")
 
     def get_prices(self) -> Dict[str, Dict[str, float]]:
         return {
@@ -76,23 +77,16 @@ class MarketMaker(AbstractMarketMaker):
         return candidate.price if candidate else None
 
     def register_participant(self, investor: AbstractInvestor):
-        self.debug(f"Registering participant {investor.get_qname()}")
         portfolio = investor.get_portfolio()
         if not all([key in self.symbols for key in portfolio.keys() if key != 'CASH']):
             self.logger.error(f"Can't register {investor.get_qname()}: Not all given assets are supported here.")
             raise ValueError("Illegal portfolio: Not all given assets are supported here.")
         self.participants[investor.get_qname()] = {'portfolio': portfolio, 'contact': investor}
-        self.debug(f"Registered participant {investor.get_qname()}")
+        self.logger.info(f"Registered participant {investor.get_qname()}")
 
-    def debug(self, msg: str):
-        self.logger.debug(f'MarketMaker: {msg}')
-
-    def error(self, msg: str):
-        self.logger.error(f'MarketMaker: {msg}')
-
-    def submit_orders(self, orders: List[Order]):
-        self.debug(f"Received {len(orders)} orders")
-        self.debug(f'{orders[0].order_type.value} from {orders[0].price} to {orders[-1].price}')
+    def submit_orders(self, orders: List[Order], clock: Clock):
+        self.logger.debug(f"[{str(clock)}]: Received {len(orders)} orders")
+        self.logger.debug(f'{orders[0].order_type.value} from {orders[0].price} to {orders[-1].price}')
         reg_count, proc_count = 0, 0
         for order in orders:
             symbol = order.symbol
@@ -105,9 +99,9 @@ class MarketMaker(AbstractMarketMaker):
                 self.register_order(order)
                 reg_count += 1
             else:
-                self.process_order(order, candidate)
+                self.process_order(order, candidate, clock)
                 proc_count += 1
-        self.debug(f'registered {reg_count} - processed {proc_count} orders')
+        self.logger.debug(f'registered {reg_count} - processed {proc_count} orders')
 
     def register_order(self, order: Order):
         order_type, symbol, price = order.order_type, order.symbol, order.price
@@ -127,10 +121,10 @@ class MarketMaker(AbstractMarketMaker):
             # market order are queued separately
             self.market_orders[order_type][symbol].append(order)
 
-    def process_order(self, order: Order, candidate: Order):
+    def process_order(self, order: Order, candidate: Order, clock: Clock):
         done = False
         while not done:
-            order, done = self.process_order_maybe_partially(order, candidate)
+            order, done = self.process_order_maybe_partially(order, candidate, clock)
             if not done:
                 candidate = self.candidates[order.order_type.other()].get(order.symbol)
 
@@ -142,7 +136,7 @@ class MarketMaker(AbstractMarketMaker):
         else:
             return self.mrtxp[ask.symbol]
 
-    def execute_trade(self, bid: Order, ask: Order):
+    def execute_trade(self, bid: Order, ask: Order, clock: Clock):
 
         tx_price = self.determine_price(bid, ask)
         tx_volume = min(ask.amount, bid.amount)
@@ -153,7 +147,8 @@ class MarketMaker(AbstractMarketMaker):
                                  seller=ask.other_party,
                                  symbol=bid.symbol,
                                  volume=tx_volume,
-                                 price=tx_price)
+                                 price=tx_price,
+                                 clock=clock)
         self.mrtxp[bid.symbol] = tx_price
 
     def replace_candidate_if_possible(self, candidate: Order):
@@ -177,15 +172,17 @@ class MarketMaker(AbstractMarketMaker):
             return market_candidates[0]
         return None
 
-    def process_order_maybe_partially(self, order: Order, candidate: Order) -> Tuple[Optional[Order], bool]:
+    def process_order_maybe_partially(self, order: Order, candidate: Order,
+                                      clock: Clock) -> Tuple[Optional[Order], bool]:
 
         bid, ask = Order.as_bid_ask(order, candidate)
         if ask.matches(bid):
-            self.execute_trade(bid, ask)
+            self.execute_trade(bid, ask, clock)
         else:
             candidate = self.find_market_candidate(candidate.order_type, ask.symbol)
             if candidate:
-                self.execute_trade(*Order.as_bid_ask(order, candidate))
+                bid, ask = Order.as_bid_ask(order, candidate)
+                self.execute_trade(bid, ask, clock)
             else:
                 self.register_order(order)
                 return None, True
@@ -212,7 +209,7 @@ class MarketMaker(AbstractMarketMaker):
             if len(self.market_orders[order_type][symbol]) == 0:
                 del self.orders[order_type][symbol]
 
-    def execute_transaction(self, buyer, seller, symbol, volume, price):
+    def execute_transaction(self, buyer, seller, symbol, volume, price, clock):
 
         self.participants[buyer]['portfolio'][symbol] += volume
         self.participants[seller]['portfolio'][symbol] -= volume
@@ -223,17 +220,17 @@ class MarketMaker(AbstractMarketMaker):
         # TODO: Better have the tests supply some dummy thing here and always demand that contacts are available
         buyer_ref = self.participants[buyer]['contact']
         if buyer_ref:
-            self.debug(f'Reporting buy to {buyer_ref.get_qname()}')
-            buyer_ref.report_tx(OrderType.BID, symbol, volume, price, volume * price)
+            self.logger.debug(f'Reporting buy to {buyer_ref.get_qname()}')
+            buyer_ref.report_tx(OrderType.BID, symbol, volume, price, volume * price, clock)
 
         seller_ref = self.participants[seller]['contact']
         if seller_ref:
-            self.debug(f'Reporting sell to {seller_ref.get_name()} ({seller_ref.osid()}')
-            seller_ref.report_tx(OrderType.ASK, symbol, volume, price, volume * price)
+            self.logger.debug(f'Reporting sell to {seller_ref.get_qname()}')
+            seller_ref.report_tx(OrderType.ASK, symbol, volume, price, volume * price, clock)
 
     def trades_in(self, stock: str) -> bool:
         return stock in self.symbols
 
     def osid(self) -> str:
         import os
-        return f'{os.getpid()} - {id(self)}'
+        return f'({os.getpid()}-{id(self)})'

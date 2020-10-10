@@ -28,6 +28,7 @@ class ChartInvestor(AbstractInvestor):
         self.max_volume_per_stock = self.cash / len(self.portfolio)
         self.n_orders_per_trade = 10
         self.kappa = 0.5  # larger kappa means orders more offset from the value -> better deals
+        self.default_expire_after_seconds = 10
 
         self.market = market
         self.market_makers: Dict[str, AbstractMarketMaker] = {}
@@ -102,7 +103,7 @@ class ChartInvestor(AbstractInvestor):
                                                  execution_type, expiry, self.n_orders_per_trade)
 
                 self.debug(f'Submitting {order_type.value} orders.')
-                market_maker.submit_orders(orders)
+                market_maker.submit_orders(orders, clock)
             else:
                 self.debug(f"Not sumitting oder: {abs(1 - price / value)} not above {self.action_threshold}")
 
@@ -110,11 +111,10 @@ class ChartInvestor(AbstractInvestor):
         volume = max(0., min(self.max_volume_per_stock, self.cash - self.cash_reserve))
         return int(volume / price) if volume > price else 0
 
-    @staticmethod
-    def determine_expiry() -> int:
-        return 10
+    def determine_expiry(self) -> int:
+        return self.default_expire_after_seconds
 
-    def report_tx(self, order_type: OrderType, symbol: str, volume: float, price: float, amount: float):
+    def report_tx(self, order_type: OrderType, symbol: str, volume: float, price: float, amount: float, clock: Clock):
         self.debug(f"Updating portfolio position for {symbol}")
         self.cash += amount if order_type == OrderType.ASK else -amount
         self.portfolio[symbol] += volume if order_type == OrderType.BID else -volume
@@ -127,10 +127,13 @@ class ChartInvestor(AbstractInvestor):
         return portfolio
 
     def debug(self, msg: str):
-        self.logger.debug(f"{str(self)}): {msg}")
+        self.logger.debug(f"{str(self)}: {msg}")
+
+    def info(self, msg: str):
+        self.logger.debug(f"{str(self)}: {msg}")
 
     def error(self, msg: str):
-        self.logger.error(f"{str(self)}):: {msg}")
+        self.logger.error(f"{str(self)}:: {msg}")
 
     def __repr__(self):
         return f'{self.get_qname()}'
@@ -143,4 +146,4 @@ class ChartInvestor(AbstractInvestor):
 
     def osid(self) -> str:
         import os
-        return f'{os.getpid()} - {id(self)}'
+        return f'({os.getpid()}-{id(self)})'

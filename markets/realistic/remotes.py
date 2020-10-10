@@ -27,8 +27,8 @@ class RayInvestor:
         self.logger.debug(f"{self.delegate.get_qname()}: recieved clock tick signal.")
         return self.delegate.register_with(AsyncMarketMaker(market_maker), symbol)
 
-    def report_tx(self, order_type, symbol: str, volume: float, price: float, amount: float):
-        self.delegate.report_tx(order_type, symbol, volume, price, amount)
+    def report_tx(self, order_type, symbol: str, volume: float, price: float, amount: float, clock: Clock):
+        self.delegate.report_tx(order_type, symbol, volume, price, amount, clock)
 
     def get_portfolio(self):
         return self.delegate.get_portfolio()
@@ -62,9 +62,9 @@ class AsyncInvestor(AbstractInvestor):
     def register_with(self, market_maker: AsyncMarketMaker, symbol: str):
         return ray.get(self.actor_ref.register_with.remote(market_maker.actor_ref, symbol))
 
-    def report_tx(self, order_type, symbol: str, volume: float, price: float, amount: float):
+    def report_tx(self, order_type, symbol: str, volume: float, price: float, amount: float, clock: Clock):
         self.logger.debug(f'{self.get_qname()} here. Reporting transaction to remote.')
-        self.actor_ref.report_tx.remote(order_type, symbol, volume, price, amount)
+        self.actor_ref.report_tx.remote(order_type, symbol, volume, price, amount, clock)
 
     def get_portfolio(self):
         return ray.get(self.actor_ref.get_portfolio.remote())
@@ -94,8 +94,8 @@ class AsyncMarketMaker(AbstractMarketMaker):
         else:
             self.actor_ref.register_participant.remote(investor)
 
-    def submit_orders(self, orders: List[Order]):
-        self.actor_ref.submit_orders.remote(orders)
+    def submit_orders(self, orders: List[Order], clock: Clock):
+        self.actor_ref.submit_orders.remote(orders, clock)
 
     def get_prices(self) -> Dict[str, Dict[str, float]]:
         return ray.get(self.actor_ref.get_prices.remote())
@@ -120,16 +120,16 @@ class RayMarketMaker:
     def register_participant(self, investor):
         self.delegate.register_participant(AsyncInvestor(investor))
 
-    def submit_orders(self, orders: List[Order]):
+    def submit_orders(self, orders: List[Order], clock: Clock):
         try:
-            self.delegate.submit_orders(orders)
+            self.delegate.submit_orders(orders, clock)
         except Exception as rte:
             self.logger.error(f'{type(rte)}: {str(rte)}')
 
     def get_prices(self) -> Dict[str, Dict[str, float]]:
         return self.delegate.get_prices()
 
-    def get_order_book(self) -> Dict[float, Tuple[str, float]]:
+    def get_order_book(self) -> Dict[str, Dict[float, Tuple[str, float]]]:
         return self.delegate.get_order_book()
 
     def trades_in(self, stock: str) -> bool:

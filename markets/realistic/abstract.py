@@ -37,7 +37,8 @@ class AbstractInvestor(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def report_tx(self, order_type: OrderType, symbol: str, volume: float, price: float, amount: float):
+    def report_tx(self, order_type: OrderType, symbol: str, volume: float,
+                  price: float, amount: float, clock: Clock):
         pass
 
     @abc.abstractmethod
@@ -73,10 +74,11 @@ class AbstractMarketMaker(abc.ABC):
         """
 
     @abc.abstractmethod
-    def submit_orders(self, orders: List[Order]):
+    def submit_orders(self, orders: List[Order], clock: Clock):
         """
         submit orders for a particular stock, identified by symbol
         :param orders: list of Orders
+        :param clock: The respective current timestamp
         """
 
     @abc.abstractmethod

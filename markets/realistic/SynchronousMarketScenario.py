@@ -12,6 +12,8 @@ class SynchronousMarketScenario(AbstractMarketScenario):
 
     def register_market_makers(self, *market_makers: AbstractMarketMaker) -> List[AbstractMarketMaker]:
         self.market_makers += list(market_makers)
+        for market_maker in market_makers:
+            self.logger.info(f"Registered MarketMaker: {market_maker.osid()}")
         return list(market_makers)
 
     def register_investors(self, *investors: AbstractInvestor) -> List[AbstractInvestor]:
@@ -23,8 +25,9 @@ class SynchronousMarketScenario(AbstractMarketScenario):
         return list(investors)
 
     def tick(self, seconds: int = 1):
+        self.clock.tick(seconds)
         for investor in self.investors:
-            investor.tick(self.clock.tick(seconds))
+            investor.tick(self.clock)
 
     def identify_investors(self):
         return [inv.get_qname() for inv in self.investors]

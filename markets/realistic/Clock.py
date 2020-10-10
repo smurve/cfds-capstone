@@ -25,6 +25,10 @@ class Clock:
         years, days = divmod(days, self.n_days)
         return years, days, hours, minutes, seconds
 
+    def __repr__(self):
+        y, d, h, m, s = self.time()
+        return f'{y}-{d} {h}:{m}:{s}'
+
     def year(self):
         return self.time()[0]
 

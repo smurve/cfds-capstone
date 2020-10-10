@@ -1,5 +1,6 @@
 import time
 from unittest import TestCase
+import logging
 
 import pytest
 import ray
@@ -13,6 +14,11 @@ from markets.realistic.Clock import Clock
 
 
 class ScenarioTest(TestCase):
+
+    def setUp(self) -> None:
+        #logging.getLogger('ChartInvestor').setLevel('INFO')
+        #logging.getLogger('MarketMaker').setLevel('INFO')
+        pass
 
     @staticmethod
     def get_scenario(clock: Clock) -> AbstractMarketScenario:

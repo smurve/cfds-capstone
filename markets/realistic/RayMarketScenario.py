@@ -23,7 +23,7 @@ class RayMarketScenario(AbstractMarketScenario):
         market_makers = [AsyncMarketMaker(market_maker) for market_maker in market_makers]
         self.market_makers += market_makers
         for market_maker in market_makers:
-            self.logger.debug(f"Market Maker: {market_maker.osid()}")
+            self.logger.info(f"Registered MarketMaker: {market_maker.osid()}")
 
         return market_makers
 

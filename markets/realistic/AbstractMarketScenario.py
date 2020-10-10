@@ -51,7 +51,7 @@ class AbstractMarketScenario(abc.ABC):
                 if market_maker.trades_in(stock):
                     investor.register_with(market_maker, stock)
                     market_maker.register_participant(investor)
-                    self.logger.debug(f'Registered investor {investor.osid()} with market maker {market_maker.osid()}')
+                    self.logger.info(f'Registered investor {investor.osid()} with market maker {market_maker.osid()}')
                     found = True
             if not found:
                 raise ScenarioError(f"Can't find a market maker supporting stock {stock}")

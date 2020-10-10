@@ -1,7 +1,9 @@
 from copy import deepcopy
 from unittest import TestCase
 
-from markets.realistic import Order, OrderType, ExecutionType, MarketMaker, USITMarket, ChartInvestor, BiasedMarketView
+from markets.realistic import (Order, OrderType, ExecutionType, Clock,
+                               MarketMaker, USITMarket, ChartInvestor, BiasedMarketView)
+
 from markets.realistic import AbstractInvestor
 
 
@@ -49,12 +51,12 @@ class MarketMakerTest(TestCase):
         order = self.given_order(symbol=unknown_symbol)
         mm = self.given_market_maker()
         try:
-            mm.submit_orders([order])
+            mm.submit_orders([order], Clock())
             self.fail("Should have raised ValueError")
         except ValueError as ve:
             self.assertTrue("Illegal order" in str(ve))
         try:
-            mm.submit_orders([order])
+            mm.submit_orders([order], Clock())
             self.fail("Should have raised ValueError")
         except ValueError as ve:
             self.assertTrue("Illegal order" in str(ve))
@@ -64,13 +66,13 @@ class MarketMakerTest(TestCase):
             order = self.given_order(order_type=order_type)
             symbol, price = order.symbol, order.price
             mm = self.given_market_maker()
-            mm.submit_orders([order])
+            mm.submit_orders([order], Clock())
             self.assertEqual(mm.candidates[order_type][symbol], order)
             self.assertEqual(mm.orders[order_type][symbol][price][0], order)
 
             # An equal bid won't update the high, yet gets registered for later matching
             other_order = self.given_order(order_type=order_type)
-            mm.submit_orders([other_order])
+            mm.submit_orders([other_order], Clock())
             self.assertEqual(mm.candidates[order_type][symbol].price, other_order.price)
             # order matters, since it determines execution order!
             self.assertEqual(mm.orders[order_type][symbol][price][0], order)
@@ -82,13 +84,13 @@ class MarketMakerTest(TestCase):
             order = self.given_order(order_type=order_type)
             symbol = order.symbol
             mm = self.given_market_maker()
-            mm.submit_orders([order])
+            mm.submit_orders([order], Clock())
             self.assertEqual(mm.candidates[order_type][symbol], order)
             self.assertEqual(mm.orders[order_type][order.symbol][order.price][0], order)
 
             # An equal order won't replace the current candidate, yet gets registered for later matching
             other_order = self.given_order(order_type=order_type)
-            mm.submit_orders([other_order])
+            mm.submit_orders([other_order], Clock())
             self.assertEqual(mm.candidates[order_type][symbol].price, other_order.price)
             # order matters, since it determines execution order!
             self.assertEqual(mm.orders[order_type][symbol][order.price][0], order)
@@ -109,7 +111,7 @@ class MarketMakerTest(TestCase):
             prev_buyer = deepcopy(mm.participants[str(buyer)])
             prev_seller = deepcopy(mm.participants[str(seller)])
 
-            mm.submit_orders(pair)
+            mm.submit_orders(pair, Clock())
 
             self.assertEqual(mm.participants[str(buyer)]['portfolio']['CASH'],
                              prev_buyer['portfolio']['CASH'] - sell.amount * sell.price)
@@ -136,14 +138,14 @@ class MarketMakerTest(TestCase):
         sell3 = self.given_order(order_type=OrderType.ASK, other_party=seller2,
                                  price=100, amount=60)
         symbol = sell1.symbol
-        mm.submit_orders([sell0, sell1, sell2, sell3])
+        mm.submit_orders([sell0, sell1, sell2, sell3], Clock())
 
         self.assertEqual(3, len(mm.orders[OrderType.ASK][symbol]))
 
         buy = self.given_order(order_type=OrderType.BID, other_party=buyer,
                                price=130, amount=200)
         symbol = buy.symbol
-        mm.submit_orders([buy])
+        mm.submit_orders([buy], Clock())
 
         # seller2 sold her 60 shares for 100$ each
         self.assertEqual(mm.participants[str(seller2)]['portfolio'], {
@@ -162,7 +164,7 @@ class MarketMakerTest(TestCase):
 
         buy = self.given_order(order_type=OrderType.BID, other_party=buyer,
                                price=130, amount=50)
-        mm.submit_orders([buy])
+        mm.submit_orders([buy], Clock())
 
         # buyer bought another 10 for 120
         # buyer bought 110 for 100 and the remining 90 for 120
@@ -190,14 +192,14 @@ class MarketMakerTest(TestCase):
                                 price=140, amount=60)
 
         symbol = 'TSMC'
-        mm.submit_orders([buy3, buy2, buy1, buy0])
+        mm.submit_orders([buy3, buy2, buy1, buy0], Clock())
 
         self.assertEqual(3, len(mm.orders[OrderType.BID][symbol]))
 
         sell = self.given_order(order_type=OrderType.ASK, other_party=seller,
                                 price=110, amount=200)
 
-        mm.submit_orders([sell])
+        mm.submit_orders([sell], Clock())
 
         # buyer2 bought her 60 shares for 140$ each
         self.assertEqual(mm.participants[str(buyer2)]['portfolio'], {
@@ -216,7 +218,7 @@ class MarketMakerTest(TestCase):
 
         sell = self.given_order(order_type=OrderType.ASK, other_party=seller,
                                 price=110, amount=50)
-        mm.submit_orders([sell])
+        mm.submit_orders([sell], Clock())
 
         # seller sold another 10 for 110
         self.assertEqual(mm.participants[str(seller)]['portfolio'], {
@@ -248,7 +250,7 @@ class MarketMakerTest(TestCase):
         buy2 = self.given_order(order_type=OrderType.BID, other_party=buyer2,
                                 price=110, amount=60)
 
-        mm.submit_orders([sell_m1, sell_m2, sell_l, buy1, buy2])
+        mm.submit_orders([sell_m1, sell_m2, sell_l, buy1, buy2], Clock())
 
         # 1st tx: s1 -> b1 50 @ 120
         # 2nd tx: s1 -> b2 40 @ 110
@@ -288,7 +290,7 @@ class MarketMakerTest(TestCase):
         sell2 = self.given_order(order_type=OrderType.ASK, other_party=seller2,
                                  amount=100, price=130)
 
-        mm.submit_orders([buy_l, buy_m1, buy_m2, sell1, sell2])
+        mm.submit_orders([buy_l, buy_m1, buy_m2, sell1, sell2], Clock())
 
         # 1st tx: s1 -> b1 - 50 @ 110
         # 2nd tx: s2 -> b1 - 40 @ 130
@@ -325,7 +327,7 @@ class MarketMakerTest(TestCase):
         sell_m = self.given_order(order_type=OrderType.ASK, other_party=seller1,
                                   amount=300, execution_type=ExecutionType.MARKET)
 
-        mm.submit_orders(buys + [sell_m])
+        mm.submit_orders(buys + [sell_m], Clock())
 
         sells = [self.given_order(order_type=OrderType.ASK, other_party=seller2,
                                   amount=50, price=110 + inc) for inc in range(10)]
@@ -346,7 +348,7 @@ class MarketMakerTest(TestCase):
 
         self.assertEqual(104, mm.mrtxp['TSMC'])
 
-        mm.submit_orders(sells + [buy_m])
+        mm.submit_orders(sells + [buy_m], Clock())
 
         amount_2 = 50 * (110 + 111 + 112 + 113 + 114 + 115)
         self.assertEqual(mm.participants[str(buyer2)]['portfolio'], {
