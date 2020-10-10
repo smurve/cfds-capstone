@@ -13,25 +13,25 @@ class PriceValueStrategy(AbstractTradingStrategy):
     point in time.
     """
     def __init__(self, investor_qname: str, portfolio: Dict[str, float], market: AbstractMarket,
-                 market_makers: Dict[str, str], max_volume_per_stock: float,
+                 max_volume_per_stock: float,
                  action_threshold: float, logger: Logger):
         """
         :param investor_qname:
         :param portfolio: a dict of symbol, number of shares
         :param market: the market
-        :param market_makers: A dict assigning a market_maker osid to all names in the portfolio
         :param max_volume_per_stock:
         :param logger: Any logger suitable to the investor
         """
         self.investor_qname = investor_qname
         self.market = market
-        self.market_makers = market_makers
         self.logger = logger
         self.portfolio = portfolio
         self.max_volume_per_stock = max_volume_per_stock
+        # TODO: take these params to the factory constructor
         self.kappa = 0.5  # larger kappa means orders more offset from the value -> better deals
         self.default_expire_after_seconds = 10
         self.n_orders_per_trade = 10
+
         self.order_generator = None  # will be lazily constructed before first usage
         self.action_threshold = action_threshold
 
@@ -100,15 +100,10 @@ class PriceValueStrategyFactory(AbstractTradingStrategyFactory):
         """
         self.action_threshold = action_threshold
 
-    def create_strategy(self, investor_qname: str, portfolio: Dict[str, float], market_makers: Dict[str, str],
-                        market: AbstractMarket, max_volume_per_stock: float, logger: Logger
+    def create_strategy(self, **kwargs
                         ) -> AbstractTradingStrategy:
-        return PriceValueStrategy(
-            investor_qname=investor_qname,
-            portfolio=portfolio,
-            market_makers=market_makers,
-            logger=logger,
-            market=market,
-            max_volume_per_stock=max_volume_per_stock,
-            action_threshold=self.action_threshold
-        )
+        """
+        :param kwargs: Please consult the PriceValueStrategy constructor doc
+        :return: a PriceValueStrategy instance
+        """
+        return PriceValueStrategy(action_threshold=self.action_threshold, **kwargs)

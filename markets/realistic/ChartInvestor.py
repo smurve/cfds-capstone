@@ -48,7 +48,6 @@ class ChartInvestor(AbstractInvestor):
             self.strategy = self.strategy_factory.create_strategy(
                 investor_qname=self.get_qname(),
                 portfolio=self.portfolio,
-                market_makers={symbol: mm.osid() for (symbol, mm) in self.market_makers.items()},
                 market=self.market,
                 max_volume_per_stock=self.cash / len(self.portfolio),
                 logger=self.logger
