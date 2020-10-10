@@ -69,12 +69,12 @@ class TriangularOrderGenerator:
         return orders
 
     def create_orders_list(self, symbol: str, p: float, tau: float, n: float,
-                           order_type: OrderType, execution_type: ExecutionType, expire_in_seconds: int, n_orders: int):
+                           order_type: OrderType, execution_type: ExecutionType, expires_at: int, n_orders: int):
         """
         :return: an OrderedDict of orders with price as key
         """
         orders = self.create_orders_df(symbol, p, tau, n, order_type, n_orders)
-        orders['expires_in_seconds'] = expire_in_seconds
+        orders['expires_at'] = expires_at
         orders['execution_type'] = execution_type
         return [Order(**order) for order in orders.to_dict('records')]
 

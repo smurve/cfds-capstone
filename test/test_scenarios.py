@@ -67,7 +67,9 @@ class ScenarioTest(TestCase):
 
         time.sleep(.1)
 
-        self.assertEqual(190.28, market_makers[0].get_prices()['TSMC']['last'])
+        # This is a magic number determined by the reproducible random involved in the stock prices
+        expected_price = 190.27
+        self.assertEqual(expected_price, market_makers[0].get_prices()['TSMC']['last'])
 
         order_book = market_makers[0].get_order_book()
 

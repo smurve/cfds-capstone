@@ -4,7 +4,7 @@ from typing import Tuple
 
 class Clock:
 
-    def __init__(self, n_seconds=60, n_minutes=60, n_hours=24, n_days=256):
+    def __init__(self, n_seconds=60, n_minutes=60, n_hours=24, n_days=256, initial_seconds=0):
         """
         Creates a clock with special multiplicities
         :param n_seconds: number of settings per minute
@@ -12,7 +12,7 @@ class Clock:
         :param n_hours: number of hours per day
         :param n_days: number of days per year
         """
-        self.seconds = 0
+        self.seconds = initial_seconds
         self.n_seconds = n_seconds
         self.n_minutes = n_minutes
         self.n_hours = n_hours

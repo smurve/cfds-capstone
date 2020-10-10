@@ -42,6 +42,10 @@ class AbstractInvestor(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def report_expiry(self, order: Order):
+        pass
+
+    @abc.abstractmethod
     def get_portfolio(self):
         pass
 

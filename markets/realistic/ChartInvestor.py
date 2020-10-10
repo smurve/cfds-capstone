@@ -4,7 +4,7 @@ from typing import Dict, List, Callable
 
 from .abstract import AbstractInvestor, AbstractMarket, AbstractMarketMaker
 from .Clock import Clock
-from .Order import OrderType, ExecutionType
+from .Order import Order, OrderType, ExecutionType
 from .AbstractMarketScenario import ScenarioError
 from .TriangularOrderGenerator import TriangularOrderGenerator
 
@@ -38,14 +38,14 @@ class ChartInvestor(AbstractInvestor):
 
     def create_orders_list(self, symbol: str, p: float, tau: float, n: float,
                            order_type: OrderType, execution_type: ExecutionType,
-                           expire_in_seconds: int, n_orders: int):
+                           expires_at: int, n_orders: int):
 
         # Lazily initialize order generator to get the correct ray-deployed qname
         if self.order_generator is None:
             self.order_generator = TriangularOrderGenerator(self.get_qname())
 
         return self.order_generator.create_orders_list(symbol, p, tau, n, order_type, execution_type,
-                                                       expire_in_seconds, n_orders)
+                                                       expires_at, n_orders)
 
     def define_actions(self) -> Dict[int, Callable]:
         # something to start with
@@ -98,7 +98,7 @@ class ChartInvestor(AbstractInvestor):
 
                 execution_type = ExecutionType.LIMIT
                 n = self.determine_n_shares(price)
-                expiry = self.determine_expiry()
+                expiry = self.determine_expiry(clock).seconds
                 orders = self.create_orders_list(symbol, center, tau, n, order_type,
                                                  execution_type, expiry, self.n_orders_per_trade)
 
@@ -111,8 +111,8 @@ class ChartInvestor(AbstractInvestor):
         volume = max(0., min(self.max_volume_per_stock, self.cash - self.cash_reserve))
         return int(volume / price) if volume > price else 0
 
-    def determine_expiry(self) -> int:
-        return self.default_expire_after_seconds
+    def determine_expiry(self, clock: Clock) -> Clock:
+        return Clock(initial_seconds=clock.seconds + self.default_expire_after_seconds)
 
     def report_tx(self, order_type: OrderType, symbol: str, volume: float, price: float, amount: float, clock: Clock):
         self.debug(f"Updating portfolio position for {symbol}")
@@ -120,6 +120,9 @@ class ChartInvestor(AbstractInvestor):
         self.portfolio[symbol] += volume if order_type == OrderType.BID else -volume
         self.debug(f"{int(volume)} shares at {price}.")
         self.debug(f"cash: {self.cash} - new number of shares: {self.portfolio[symbol]}.")
+
+    def report_expiry(self, order: Order):
+        self.debug(f"Some order expired, I don't care for now.")
 
     def get_portfolio(self):
         portfolio = deepcopy(self.portfolio)

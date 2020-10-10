@@ -30,6 +30,9 @@ class RayInvestor:
     def report_tx(self, order_type, symbol: str, volume: float, price: float, amount: float, clock: Clock):
         self.delegate.report_tx(order_type, symbol, volume, price, amount, clock)
 
+    def report_expiry(self, order: Order):
+        self.delegate.report_expiry(order)
+
     def get_portfolio(self):
         return self.delegate.get_portfolio()
 
@@ -65,6 +68,9 @@ class AsyncInvestor(AbstractInvestor):
     def report_tx(self, order_type, symbol: str, volume: float, price: float, amount: float, clock: Clock):
         self.logger.debug(f'{self.get_qname()} here. Reporting transaction to remote.')
         self.actor_ref.report_tx.remote(order_type, symbol, volume, price, amount, clock)
+
+    def report_expiry(self, order: Order):
+        self.actor_ref.report_expiry.remote(order)
 
     def get_portfolio(self):
         return ray.get(self.actor_ref.get_portfolio.remote())

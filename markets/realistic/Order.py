@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Tuple
 
+from .Clock import Clock
+
 
 class OrderType(Enum):
     ASK = 'ask'
@@ -27,12 +29,12 @@ class Order:
     symbol: str
     amount: float
     price: float
-    expires_in_seconds: int
+    expires_at: int
 
     def __repr__(self):
         return f'{self.order_type.value} ' \
                f'{self.price if self.execution_type == ExecutionType.LIMIT else ExecutionType.MARKET.value} ' \
-               f'for {self.amount} shares of {self.symbol}'
+               f'for {self.amount} shares of {self.symbol} expiring at {str(Clock(initial_seconds=self.expires_at))}'
 
     def precedes(self, other: 'Order') -> bool:
         assert other.order_type == self.order_type

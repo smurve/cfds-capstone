@@ -2,9 +2,7 @@ from copy import deepcopy
 from unittest import TestCase
 
 from markets.realistic import (Order, OrderType, ExecutionType, Clock,
-                               MarketMaker, USITMarket, ChartInvestor, BiasedMarketView)
-
-from markets.realistic import AbstractInvestor
+                               MarketMaker, USITMarket, ChartInvestor, AbstractInvestor)
 
 
 class MarketMakerTest(TestCase):
@@ -12,7 +10,7 @@ class MarketMakerTest(TestCase):
     def setUp(self) -> None:
         self.order = Order("anybody", order_type=OrderType.ASK,
                            execution_type=ExecutionType.LIMIT,
-                           symbol='TSMC', amount=100, price=134, expires_in_seconds=10)
+                           symbol='TSMC', amount=100, price=134, expires_at=10)
         self.symbols = {'TSMC': 100.0, 'NVDA': 200.0}
 
         self.market = USITMarket({'TSMC': 100., 'NVDA': 200.}, noise=0.)
@@ -28,10 +26,12 @@ class MarketMakerTest(TestCase):
             order.price = None
         if not isinstance(order.other_party, str):
             order.other_party = str(order.other_party)
+        if order.expires_at is None:
+            order.expires_at = 1000  # that means never in the context of this test
         return order
 
     def given_investor(self, symbol: str) -> AbstractInvestor:
-        return ChartInvestor(market=BiasedMarketView(self.market),
+        return ChartInvestor(market=self.market,
                              name='Michael Burry',
                              portfolio={symbol: 1000},
                              cash=200_000)
@@ -329,13 +329,8 @@ class MarketMakerTest(TestCase):
 
         mm.submit_orders(buys + [sell_m], Clock())
 
-        sells = [self.given_order(order_type=OrderType.ASK, other_party=seller2,
-                                  amount=50, price=110 + inc) for inc in range(10)]
-
-        buy_m = self.given_order(order_type=OrderType.BID, other_party=buyer2,
-                                 amount=300, execution_type=ExecutionType.MARKET)
-
-        amount_1 = 50 * (109 + 108 + 107 + 106 + 105 + 104)
+        current_price = mm.get_prices()['TSMC']['last']
+        amount_1 = 50 * 6 * current_price  # All for the current price
         self.assertEqual(mm.participants[str(buyer1)]['portfolio'], {
             'TSMC': 1300,
             'CASH': 200_000 - amount_1
@@ -346,7 +341,13 @@ class MarketMakerTest(TestCase):
             'CASH': 200_000 + amount_1
         })
 
-        self.assertEqual(104, mm.mrtxp['TSMC'])
+        self.assertEqual(101.0, mm.mrtxp['TSMC'])
+
+        sells = [self.given_order(order_type=OrderType.ASK, other_party=seller2,
+                                  amount=50, price=110 + inc) for inc in range(10)]
+
+        buy_m = self.given_order(order_type=OrderType.BID, other_party=buyer2,
+                                 amount=300, execution_type=ExecutionType.MARKET)
 
         mm.submit_orders(sells + [buy_m], Clock())
 
