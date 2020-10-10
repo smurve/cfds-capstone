@@ -2,7 +2,7 @@ import logging
 from copy import deepcopy
 from typing import Dict, List, Callable
 
-from .abstract import AbstractInvestor, AbstractMarket, AbstractMarketMaker
+from .abstract import AbstractInvestor, AbstractMarket, AbstractMarketMaker, AbstractTradingStrategyFactory
 from .Clock import Clock
 from .Order import Order, OrderType, ExecutionType
 from .AbstractMarketScenario import ScenarioError
@@ -10,12 +10,16 @@ from .TriangularOrderGenerator import TriangularOrderGenerator
 
 
 class ChartInvestor(AbstractInvestor):
+    """
+    An Investor that trades based on historic market data and current valuations
+    """
 
     def __init__(self,
                  market: AbstractMarket,
                  portfolio: Dict[str, float],
                  cash: float,
-                 name: str):
+                 name: str,
+                 strategy_factory: AbstractTradingStrategyFactory):
 
         self.logger = logging.getLogger(self.__class__.__name__)
 
@@ -36,9 +40,18 @@ class ChartInvestor(AbstractInvestor):
         self.order_generator = None
         self.debug("Starting up. OSID may not reflect final host process yet.")
 
+        self.strategy = strategy_factory.create_strategy(
+            investor_qname=self.get_qname(),
+            portfolio=self.portfolio,
+            market_makers={symbol: mm.osid() for (symbol, mm) in self.market_makers.items()},
+            market=self.market,
+            max_volume_per_stock=self.cash / len(self.portfolio),
+            logger=self.logger
+        )
+
     def create_orders_list(self, symbol: str, p: float, tau: float, n: float,
                            order_type: OrderType, execution_type: ExecutionType,
-                           expires_at: int, n_orders: int):
+                           expires_at: int, n_orders: int) -> List[Order]:
 
         # Lazily initialize order generator to get the correct ray-deployed qname
         if self.order_generator is None:
@@ -73,6 +86,9 @@ class ChartInvestor(AbstractInvestor):
             action(clock)
 
     def act_on_price_vs_value(self, clock: Clock):
+        pass
+
+    def _act_on_price_vs_value(self, clock: Clock):
 
         prices_dict = {market_maker: market_maker.get_prices()
                        for market_maker in self.market_makers.values()}

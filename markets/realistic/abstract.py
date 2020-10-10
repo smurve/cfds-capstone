@@ -111,3 +111,32 @@ class AbstractMarketMaker(abc.ABC):
         """
         :return: a string consisting of process id and instance id
         """
+
+
+class AbstractTradingStrategyFactory(abc.ABC):
+
+    @staticmethod
+    @abc.abstractmethod
+    def create_strategy(**kwargs) -> AbstractTradingStrategy:
+        """
+        :param kwargs: Implementation-specifig parames
+        :return:
+        """
+
+
+class AbstractTradingStrategy(abc.ABC):
+
+    @abc.abstractmethod
+    def suggest_orders(self, prices_dict: Dict[str, Dict[str, Dict[str, float]]],
+                       action_threshold_percentage: float, cash: float, cash_reserve: float,
+                       n_orders_per_trade: int, clock: Clock) -> Dict[str, List[Order]]:
+        """
+
+        :param prices_dict: a dictionary like so: {'mm_osid': {'TSMC': {'bid': 10, 'ask': 11, 'last': 10.2}}}
+        :param action_threshold_percentage: a strategy-specific threshold. Consult your strategy's doc.
+        :param cash: The investor's current cash position
+        :param cash_reserve: The investor's intended cash_reserve. Consult your strategy's doc for how this is used.
+        :param n_orders_per_trade: Number of orders to split the order into.
+        :param clock: The current time represented by a Clock instance
+        :return: A dict of mm_osid: List of Order
+        """

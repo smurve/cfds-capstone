@@ -3,6 +3,7 @@ from unittest import TestCase
 
 from markets.realistic import (Order, OrderType, ExecutionType, Clock,
                                MarketMaker, USITMarket, ChartInvestor, AbstractInvestor)
+from markets.realistic.strategy import PriceValueStrategyFactory
 
 
 class MarketMakerTest(TestCase):
@@ -14,6 +15,8 @@ class MarketMakerTest(TestCase):
         self.symbols = {'TSMC': 100.0, 'NVDA': 200.0}
 
         self.market = USITMarket({'TSMC': 100., 'NVDA': 200.}, noise=0.)
+
+        self.strategy_factory = PriceValueStrategyFactory()
 
     def given_market_maker(self) -> MarketMaker:
         return MarketMaker(self.market)
@@ -34,7 +37,8 @@ class MarketMakerTest(TestCase):
         return ChartInvestor(market=self.market,
                              name='Michael Burry',
                              portfolio={symbol: 1000},
-                             cash=200_000)
+                             cash=200_000,
+                             strategy_factory=self.strategy_factory)
 
     def test_register_participant_with_unknown_symbol(self):
         unknown_symbol = 'AAPL'

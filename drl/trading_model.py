@@ -129,7 +129,7 @@ class EnvironmentFactory:
                         data.append(pickle.load(file))
                         r+=1
                     except EOFError:
-                        break;
+                        break
         return data
                         
     def new_env(self, index=None):

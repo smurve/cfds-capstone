@@ -1,3 +1,5 @@
+from typing import List
+
 import numpy as np
 import pandas as pd
 
@@ -69,7 +71,8 @@ class TriangularOrderGenerator:
         return orders
 
     def create_orders_list(self, symbol: str, p: float, tau: float, n: float,
-                           order_type: OrderType, execution_type: ExecutionType, expires_at: int, n_orders: int):
+                           order_type: OrderType, execution_type: ExecutionType,
+                           expires_at: int, n_orders: int) -> List[Order]:
         """
         :return: an OrderedDict of orders with price as key
         """

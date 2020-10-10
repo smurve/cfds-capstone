@@ -80,7 +80,6 @@ class ScenarioTest(TestCase):
         # TODO: Introduce simple Momentum Investors
         # TODO: Investors may create market orders (Retail)
         # TODO: Introduce node- and stock-specific market makers
-        # TODO: Handle order expiry at market maker and investor side
         # TODO: Introduce stop loss strategy for investors
         # TODO: Introduce reporting from the market maker
 
