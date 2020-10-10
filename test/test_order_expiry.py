@@ -35,7 +35,8 @@ class OrderExpiryTest(TestCase):
         return ChartInvestor(market=self.market,
                              name='Michael Burry',
                              portfolio={symbol: 1000},
-                             cash=200_000)
+                             cash=200_000,
+                             strategy_factory=None)
 
     def given_connected_actors(self) -> Tuple[AbstractInvestor, AbstractInvestor, AbstractMarketMaker]:
         market_maker = self.given_market_maker()
@@ -155,4 +156,3 @@ class OrderExpiryTest(TestCase):
         # and the remainder of the bid is immediately expired
         self.assertEqual(market_maker.orders[OrderType.BID]['TSMC'], {})
         self.assertIsNone(market_maker.candidates[OrderType.BID]['TSMC'])
-

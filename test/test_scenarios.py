@@ -1,23 +1,23 @@
 import time
 from unittest import TestCase
-import logging
 
+import numpy as np
 import pytest
 import ray
-import numpy as np
 
 from markets.realistic import (
     AbstractMarketScenario, SynchronousMarketScenario, RayMarketScenario,
     ChartInvestor, USITMarket, MarketMaker)
 from markets.realistic.BiasedMarketView import INTRINSIC_VALUE, BiasedMarketView
 from markets.realistic.Clock import Clock
+from markets.realistic.strategy import PriceValueStrategyFactory
 
 
 class ScenarioTest(TestCase):
 
     def setUp(self) -> None:
-        #logging.getLogger('ChartInvestor').setLevel('INFO')
-        #logging.getLogger('MarketMaker').setLevel('INFO')
+        # logging.getLogger('ChartInvestor').setLevel('INFO')
+        # logging.getLogger('MarketMaker').setLevel('INFO')
         pass
 
     @staticmethod
@@ -41,7 +41,10 @@ class ScenarioTest(TestCase):
         warren = ChartInvestor(market=biased_market_view,
                                name='Warren Buffet',
                                portfolio={'TSMC': 5000},
-                               cash=200_000)
+                               cash=200_000,
+                               strategy_factory=PriceValueStrategyFactory(
+                                   action_threshold=0.01,
+                               ))
 
         # Michael has a bias as to overestimate the intrinsic value (OK, I know he wouldn't - ever!)
         biases = {INTRINSIC_VALUE: lambda v: 1.04 * v}
@@ -50,7 +53,10 @@ class ScenarioTest(TestCase):
         michael = ChartInvestor(market=biased_market_view,
                                 name='Michael Burry',
                                 portfolio={'TSMC': 5000},
-                                cash=200_000)
+                                cash=200_000,
+                                strategy_factory=PriceValueStrategyFactory(
+                                    action_threshold=0.01,
+                                ))
 
         investors = sc.register_investors(warren, michael)
 

@@ -16,7 +16,7 @@ class MarketMakerTest(TestCase):
 
         self.market = USITMarket({'TSMC': 100., 'NVDA': 200.}, noise=0.)
 
-        self.strategy_factory = PriceValueStrategyFactory()
+        self.strategy_factory = PriceValueStrategyFactory(action_threshold=0.01)
 
     def given_market_maker(self) -> MarketMaker:
         return MarketMaker(self.market)

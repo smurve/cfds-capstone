@@ -1,10 +1,9 @@
 from logging import Logger
 from typing import Dict, List
 
-from .TriangularOrderGenerator import TriangularOrderGenerator
-from .AbstractMarketScenario import ScenarioError
 from .Clock import Clock
 from .Order import Order, ExecutionType, OrderType
+from .TriangularOrderGenerator import TriangularOrderGenerator
 from .abstract import AbstractMarket, AbstractTradingStrategy, AbstractTradingStrategyFactory
 
 
@@ -15,7 +14,7 @@ class PriceValueStrategy(AbstractTradingStrategy):
     """
     def __init__(self, investor_qname: str, portfolio: Dict[str, float], market: AbstractMarket,
                  market_makers: Dict[str, str], max_volume_per_stock: float,
-                 logger: Logger):
+                 action_threshold: float, logger: Logger):
         """
         :param investor_qname:
         :param portfolio: a dict of symbol, number of shares
@@ -32,26 +31,28 @@ class PriceValueStrategy(AbstractTradingStrategy):
         self.max_volume_per_stock = max_volume_per_stock
         self.kappa = 0.5  # larger kappa means orders more offset from the value -> better deals
         self.default_expire_after_seconds = 10
-        self.order_generator = None
+        self.n_orders_per_trade = 10
+        self.order_generator = None  # will be lazily constructed before first usage
+        self.action_threshold = action_threshold
 
-    def suggest_orders(self, prices_dict: Dict[str, Dict[str, Dict[str, float]]],
-                       action_threshold_percentage: float, cash: float, cash_reserve: float,
-                       n_orders_per_trade: int, clock: Clock) -> Dict[str, List[Order]]:
+    def suggest_orders(self, prices_dict: Dict[str, Dict[str, float]],
+                       cash: float, cash_reserve: float,
+                       clock: Clock) -> Dict[str, List[Order]]:
 
         orders_dict: Dict[str, List[Order]] = {}
         for symbol in self.portfolio.keys():
             self.debug(f"Looking at {symbol}")
-            market_maker = self.market_makers.get(symbol)
-            if not market_maker:
-                self.error(f"No market maker for {symbol}")
-                raise ScenarioError(f'No market maker for stock {symbol}.')
+            # market_maker = self.market_makers.get(symbol)
+            # if not market_maker:
+            #     self.error(f"No market maker for {symbol}")
+            #     raise ScenarioError(f'No market maker for stock {symbol}.')
 
-            price = prices_dict[market_maker][symbol]['last']
+            price = prices_dict[symbol]['last']
             self.debug(f'Price for {symbol}: {price}')
             value = self.market.get_intrinsic_value(symbol, clock.day())
             self.debug(f'Value for {symbol}: {value}')
 
-            if abs(1 - price / value) > action_threshold_percentage:
+            if abs(1 - price / value) > self.action_threshold:
                 tau = 2 * abs((price - value) / price)
                 order_type = OrderType.BID if price < value else OrderType.ASK
 
@@ -62,8 +63,8 @@ class PriceValueStrategy(AbstractTradingStrategy):
                 n = self.determine_n_shares(price, cash, cash_reserve)
                 expiry = self.determine_expiry(clock).seconds
                 orders = self.create_orders_list(symbol, center, tau, n, order_type,
-                                                 execution_type, expiry, n_orders_per_trade)
-                orders_dict[market_maker] = orders
+                                                 execution_type, expiry, self.n_orders_per_trade)
+                orders_dict[symbol] = orders
         return orders_dict
 
     def determine_n_shares(self, price: float, cash: float, cash_reserve: float) -> float:
@@ -93,8 +94,13 @@ class PriceValueStrategy(AbstractTradingStrategy):
 
 class PriceValueStrategyFactory(AbstractTradingStrategyFactory):
 
-    @staticmethod
-    def create_strategy(investor_qname: str, portfolio: Dict[str, float], market_makers: Dict[str, str],
+    def __init__(self, action_threshold: float):
+        """
+        :param action_threshold: percentage like abs((price/value-1)) before this strategy triggers.
+        """
+        self.action_threshold = action_threshold
+
+    def create_strategy(self, investor_qname: str, portfolio: Dict[str, float], market_makers: Dict[str, str],
                         market: AbstractMarket, max_volume_per_stock: float, logger: Logger
                         ) -> AbstractTradingStrategy:
         return PriceValueStrategy(
@@ -103,5 +109,6 @@ class PriceValueStrategyFactory(AbstractTradingStrategyFactory):
             market_makers=market_makers,
             logger=logger,
             market=market,
-            max_volume_per_stock=max_volume_per_stock
+            max_volume_per_stock=max_volume_per_stock,
+            action_threshold=self.action_threshold
         )

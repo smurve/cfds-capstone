@@ -1,11 +1,11 @@
 import logging
 from copy import deepcopy
-from typing import Dict, List, Callable
+from typing import Dict, List, Callable, Optional
 
-from .abstract import AbstractInvestor, AbstractMarket, AbstractMarketMaker, AbstractTradingStrategyFactory
+from .abstract import (AbstractInvestor, AbstractMarket, AbstractMarketMaker,
+                       AbstractTradingStrategyFactory, AbstractTradingStrategy)
 from .Clock import Clock
 from .Order import Order, OrderType, ExecutionType
-from .AbstractMarketScenario import ScenarioError
 from .TriangularOrderGenerator import TriangularOrderGenerator
 
 
@@ -19,7 +19,7 @@ class ChartInvestor(AbstractInvestor):
                  portfolio: Dict[str, float],
                  cash: float,
                  name: str,
-                 strategy_factory: AbstractTradingStrategyFactory):
+                 strategy_factory: AbstractTradingStrategyFactory = None):
 
         self.logger = logging.getLogger(self.__class__.__name__)
 
@@ -27,27 +27,33 @@ class ChartInvestor(AbstractInvestor):
         self.portfolio = deepcopy(portfolio)
         self.cash = cash
 
-        self.action_threshold = 0.01  # act if price/value ratio exceeds that
         self.cash_reserve = self.cash / 10
-        self.max_volume_per_stock = self.cash / len(self.portfolio)
-        self.n_orders_per_trade = 10
-        self.kappa = 0.5  # larger kappa means orders more offset from the value -> better deals
-        self.default_expire_after_seconds = 10
 
         self.market = market
         self.market_makers: Dict[str, AbstractMarketMaker] = {}
         self.actions: Dict[int, Callable] = self.define_actions()
-        self.order_generator = None
-        self.debug("Starting up. OSID may not reflect final host process yet.")
+        self.debug(f"Starting up. Qualfied Name {self.get_qname()} may not reflect process id on destination host yet.")
 
-        self.strategy = strategy_factory.create_strategy(
-            investor_qname=self.get_qname(),
-            portfolio=self.portfolio,
-            market_makers={symbol: mm.osid() for (symbol, mm) in self.market_makers.items()},
-            market=self.market,
-            max_volume_per_stock=self.cash / len(self.portfolio),
-            logger=self.logger
-        )
+        self.strategy_factory = strategy_factory
+        self.strategy: Optional[AbstractTradingStrategy] = None
+
+    def get_strategy(self) -> AbstractTradingStrategy:
+        """
+        Strategy creation needs to wait until the first tick, for this class may potentially be deployed after
+        the constructor call. This is what Ray does.
+        :return: A lazily initialized instance of the strategy
+        """
+        assert self.strategy_factory is not None, "Strategy factory must be supplied in constructor."
+        if self.strategy is None:
+            self.strategy = self.strategy_factory.create_strategy(
+                investor_qname=self.get_qname(),
+                portfolio=self.portfolio,
+                market_makers={symbol: mm.osid() for (symbol, mm) in self.market_makers.items()},
+                market=self.market,
+                max_volume_per_stock=self.cash / len(self.portfolio),
+                logger=self.logger
+            )
+        return self.strategy
 
     def create_orders_list(self, symbol: str, p: float, tau: float, n: float,
                            order_type: OrderType, execution_type: ExecutionType,
@@ -86,51 +92,20 @@ class ChartInvestor(AbstractInvestor):
             action(clock)
 
     def act_on_price_vs_value(self, clock: Clock):
-        pass
 
-    def _act_on_price_vs_value(self, clock: Clock):
+        prices_dict = {symbol: self.market_makers[symbol].get_prices()[symbol]
+                       for symbol in self.portfolio}
 
-        prices_dict = {market_maker: market_maker.get_prices()
-                       for market_maker in self.market_makers.values()}
+        orders = self.get_strategy().suggest_orders(prices_dict=prices_dict,
+                                                    cash=self.cash,
+                                                    cash_reserve=self.cash_reserve,
+                                                    clock=clock)
 
         for symbol in self.portfolio.keys():
-            self.debug(f"Looking at {symbol}")
-            market_maker = self.market_makers.get(symbol)
-            if not market_maker:
-                self.error(f"No market maker for {symbol}")
-                raise ScenarioError(f'No market maker for stock {symbol}.')
+            self.market_makers[symbol].submit_orders(orders[symbol], clock)
 
-            price = prices_dict[market_maker][symbol]['last']
-            self.debug(f'Price for {symbol}: {price}')
-            value = self.market.get_intrinsic_value(symbol, clock.day())
-            self.debug(f'Value for {symbol}: {value}')
-
-            if abs(1 - price / value) > self.action_threshold:
-                tau = 2 * abs((price - value) / price)
-                order_type = OrderType.BID if price < value else OrderType.ASK
-
-                # kappa > 0 means a buffer from the value
-                center = (1 + self.kappa) * price - self.kappa * value
-
-                execution_type = ExecutionType.LIMIT
-                n = self.determine_n_shares(price)
-                expiry = self.determine_expiry(clock).seconds
-                orders = self.create_orders_list(symbol, center, tau, n, order_type,
-                                                 execution_type, expiry, self.n_orders_per_trade)
-
-                self.debug(f'Submitting {order_type.value} orders.')
-                market_maker.submit_orders(orders, clock)
-            else:
-                self.debug(f"Not sumitting oder: {abs(1 - price / value)} not above {self.action_threshold}")
-
-    def determine_n_shares(self, price) -> float:
-        volume = max(0., min(self.max_volume_per_stock, self.cash - self.cash_reserve))
-        return int(volume / price) if volume > price else 0
-
-    def determine_expiry(self, clock: Clock) -> Clock:
-        return Clock(initial_seconds=clock.seconds + self.default_expire_after_seconds)
-
-    def report_tx(self, order_type: OrderType, symbol: str, volume: float, price: float, amount: float, clock: Clock):
+    def report_tx(self, order_type: OrderType, symbol: str, volume: float,
+                  price: float, amount: float, clock: Clock):
         self.debug(f"Updating portfolio position for {symbol}")
         self.cash += amount if order_type == OrderType.ASK else -amount
         self.portfolio[symbol] += volume if order_type == OrderType.BID else -volume
