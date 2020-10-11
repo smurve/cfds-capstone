@@ -1,11 +1,35 @@
 from __future__ import annotations
+
+import abc
 import logging
-import ray
 from typing import List, Dict, Tuple
 
+import ray
+from ray.actor import ActorHandle
+
 from .Clock import Clock
-from .abstract import AbstractInvestor, AbstractMarketMaker
 from .Order import Order
+from .abstract import AbstractInvestor, AbstractMarketMaker, AbstractStatistician, AbstractParticipant
+
+
+class AsyncParticipant(abc.ABC):
+
+    def __init__(self, actor_ref):
+        self.actor_ref = actor_ref
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+    def register_participant(self, other_participant, **kwargs):
+        if isinstance(other_participant, AsyncParticipant):
+            self.logger.debug(f'{self.osid()}: registering actor_ref of {other_participant.osid()}')
+            self.actor_ref.register_participant.remote(other_participant.actor_ref, **kwargs)
+        elif isinstance(other_participant, ActorHandle):
+            self.logger.debug(f'{self.osid()}: registering {other_participant.osid()}')
+            self.actor_ref.register_participant.remote(other_participant, **kwargs)
+        else:
+            self.logger.error(f'{self.osid()}')
+
+    def osid(self):
+        return ray.get(self.actor_ref.osid.remote())
 
 
 @ray.remote
@@ -23,9 +47,22 @@ class RayInvestor:
     def get_stock_symbols(self):
         return self.delegate.get_stock_symbols()
 
-    def register_with(self, market_maker: AbstractMarketMaker, symbol: str):
-        self.logger.debug(f"{self.delegate.get_qname()}: recieved clock tick signal.")
-        return self.delegate.register_with(AsyncMarketMaker(market_maker), symbol)
+    def register_participant(self, other_participant: ActorHandle, **kwargs):
+        try:
+            role = ray.get(other_participant.get_role.remote())
+            if role == 'MarketMaker':
+                self.logger.info(f"{self.get_qname()}: "
+                                  f"Registering MarketMaker {ray.get(other_participant.osid.remote())}.")
+                return self.delegate.register_participant(AsyncMarketMaker(other_participant), **kwargs)
+            elif role == 'Statistician':
+                self.logger.info(f"{self.get_qname()}: "
+                                 f"Registering Statistician {ray.get(other_participant.osid.remote())}.")
+                return self.delegate.register_participant(AsyncStatistician(other_participant), **kwargs)
+
+        except Exception as e:
+            self.logger.error(f'{self.get_qname()}: Failed to register participant.')
+            self.logger.error(f'OSID was {ray.get(other_participant.osid.remote())}')
+            raise e
 
     def report_tx(self, order_type, symbol: str, volume: float, price: float, amount: float, clock: Clock):
         self.delegate.report_tx(order_type, symbol, volume, price, amount, clock)
@@ -45,14 +82,17 @@ class RayInvestor:
     def get_qname(self) -> str:
         return self.delegate.get_qname()
 
+    def get_role(self) -> str:
+        return self.delegate.get_role()
 
-class AsyncInvestor(AbstractInvestor):
 
-    def __init__(self, investor):
-        if isinstance(investor, AbstractInvestor):
-            self.actor_ref = RayInvestor.remote(investor)
+class AsyncInvestor(AsyncParticipant, AbstractInvestor):
+
+    def __init__(self, delegate):
+        if isinstance(delegate, AbstractInvestor):
+            super().__init__(RayInvestor.remote(delegate))
         else:
-            self.actor_ref = investor
+            super().__init__(delegate)
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def tick(self, clock: Clock):
@@ -61,9 +101,6 @@ class AsyncInvestor(AbstractInvestor):
 
     def get_stock_symbols(self) -> List[str]:
         return ray.get(self.actor_ref.get_stock_symbols.remote())
-
-    def register_with(self, market_maker: AsyncMarketMaker, symbol: str):
-        return ray.get(self.actor_ref.register_with.remote(market_maker.actor_ref, symbol))
 
     def report_tx(self, order_type, symbol: str, volume: float, price: float, amount: float, clock: Clock):
         self.logger.debug(f'{self.get_qname()} here. Reporting transaction to remote.')
@@ -78,42 +115,8 @@ class AsyncInvestor(AbstractInvestor):
     def get_name(self):
         return ray.get(self.actor_ref.get_name.remote())
 
-    def osid(self):
-        return ray.get(self.actor_ref.osid.remote())
-
     def get_qname(self) -> str:
         return ray.get(self.actor_ref.get_qname.remote())
-
-
-class AsyncMarketMaker(AbstractMarketMaker):
-
-    def __init__(self, delegate):
-        if isinstance(delegate, AbstractMarketMaker):
-            self.actor_ref = RayMarketMaker.remote(delegate)
-        else:
-            self.actor_ref = delegate
-        self.logger = logging.getLogger(self.__class__.__name__)
-
-    def register_participant(self, investor):
-        if isinstance(investor, AsyncInvestor):
-            self.actor_ref.register_participant.remote(investor.actor_ref)
-        else:
-            self.actor_ref.register_participant.remote(investor)
-
-    def submit_orders(self, orders: List[Order], clock: Clock):
-        self.actor_ref.submit_orders.remote(orders, clock)
-
-    def get_prices(self) -> Dict[str, Dict[str, float]]:
-        return ray.get(self.actor_ref.get_prices.remote())
-
-    def get_order_book(self) -> Dict[float, Tuple[str, float]]:
-        return ray.get(self.actor_ref.get_order_book.remote())
-
-    def trades_in(self, stock: str) -> bool:
-        return ray.get(self.actor_ref.trades_in.remote(stock))
-
-    def osid(self) -> str:
-        return ray.get(self.actor_ref.osid.remote())
 
 
 @ray.remote
@@ -123,8 +126,8 @@ class RayMarketMaker:
         self.delegate = delegate
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def register_participant(self, investor):
-        self.delegate.register_participant(AsyncInvestor(investor))
+    def register_participant(self, investor, **kwargs):
+        self.delegate.register_participant(AsyncInvestor(investor), **kwargs)
 
     def submit_orders(self, orders: List[Order], clock: Clock):
         try:
@@ -143,3 +146,60 @@ class RayMarketMaker:
 
     def osid(self) -> str:
         return self.delegate.osid()
+
+    def get_role(self) -> str:
+        return self.delegate.get_role()
+
+
+class AsyncMarketMaker(AsyncParticipant, AbstractMarketMaker):
+
+    def __init__(self, delegate):
+        if isinstance(delegate, AbstractMarketMaker):
+            super().__init__(RayMarketMaker.remote(delegate))
+        else:
+            super().__init__(delegate)
+
+    def submit_orders(self, orders: List[Order], clock: Clock):
+        self.actor_ref.submit_orders.remote(orders, clock)
+
+    def get_prices(self) -> Dict[str, Dict[str, float]]:
+        return ray.get(self.actor_ref.get_prices.remote())
+
+    def get_order_book(self) -> Dict[float, Tuple[str, float]]:
+        return ray.get(self.actor_ref.get_order_book.remote())
+
+    def trades_in(self, stock: str) -> bool:
+        return ray.get(self.actor_ref.trades_in.remote(stock))
+
+
+@ray.remote
+class RayStatistician:
+    def __init__(self, delegate: AbstractStatistician):
+        self.delegate = delegate
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+    def get_chart_data(self, **queryargs):
+        return self.delegate.get_chart_data(**queryargs)
+
+    def report_transaction(self, symbol: str, volume: float, price: float, clock: Clock):
+        self.delegate.report_transaction(symbol, volume, price, clock)
+
+    def register_participant(self, other_participant: AbstractParticipant, **kwargs):
+        self.delegate.register_participant(other_participant, **kwargs)
+
+    def get_role(self) -> str:
+        return self.delegate.get_role()
+
+
+class AsyncStatistician(AsyncParticipant, AbstractStatistician):
+    def __init__(self, delegate):
+        if isinstance(delegate, AsyncStatistician):
+            super().__init__(RayStatistician.remote(delegate))
+        else:
+            super().__init__(delegate)
+
+    def get_chart_data(self, **queryargs):
+        return ray.get(self.actor_ref.get_chart_data.remote(**queryargs))
+
+    def report_transaction(self, symbol: str, volume: float, price: float, clock: Clock):
+        self.actor_ref.report_transaction.remote(symbol, volume, price, clock)

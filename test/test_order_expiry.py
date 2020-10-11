@@ -44,8 +44,8 @@ class OrderExpiryTest(TestCase):
         inv2 = self.given_investor('TSMC')
         market_maker.register_participant(inv1)
         market_maker.register_participant(inv2)
-        inv1.register_with(market_maker, inv1.get_stock_symbols()[0])
-        inv2.register_with(market_maker, inv2.get_stock_symbols()[0])
+        inv1.register_participant(market_maker, symbol=inv1.get_stock_symbols()[0])
+        inv2.register_participant(market_maker, symbol=inv2.get_stock_symbols()[0])
         return inv1, inv2, market_maker
 
     @patch.object(ChartInvestor, 'report_expiry')

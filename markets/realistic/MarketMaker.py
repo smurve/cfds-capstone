@@ -3,8 +3,9 @@ from collections import OrderedDict
 from copy import deepcopy
 from typing import Optional, Dict, List, Tuple, Union
 
+from .common import ScenarioError
 from .Clock import Clock
-from .abstract import AbstractMarket, AbstractMarketMaker, AbstractInvestor
+from .abstract import AbstractMarket, AbstractMarketMaker, AbstractInvestor, AbstractParticipant
 from .Order import Order, OrderType, ExecutionType
 from .Stock import Stock
 
@@ -79,13 +80,25 @@ class MarketMaker(AbstractMarketMaker):
         candidate = self.candidates[order_type].get(symbol)
         return candidate.price if candidate else None
 
-    def register_participant(self, investor: AbstractInvestor):
+    def register_participant(self, other_participant: AbstractParticipant):
+        if isinstance(other_participant, AbstractInvestor):
+            self.register_investor(other_participant)
+        elif isinstance(other_participant, AbstractStatistician):
+            self.register_statistician(other_participant)
+        else:
+            self.logger.error(f"Unknown participant class: {type(other_participant)}")
+            raise ScenarioError(f"Unknown participant class: {type(other_participant)}")
+
+    def register_statistician(self, statistician):
+        self.statistician = statistician
+
+    def register_investor(self, investor: AbstractInvestor):
         portfolio = investor.get_portfolio()
         if not all([key in self.symbols for key in portfolio.keys() if key != 'CASH']):
             self.logger.error(f"Can't register {investor.get_qname()}: Not all given assets are supported here.")
             raise ValueError("Illegal portfolio: Not all given assets are supported here.")
         self.participants[investor.get_qname()] = {'portfolio': portfolio, 'contact': investor}
-        self.logger.info(f"Registered participant {investor.get_qname()}")
+        self.logger.info(f" {self.osid()}: Registered participant {investor.get_qname()}")
 
     def submit_orders(self, orders: List[Order], clock: Clock):
         self.logger.debug(f"[{str(clock)}]: Received {len(orders)} order" + ("s" if len(orders) != 1 else ""))

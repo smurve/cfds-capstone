@@ -2,12 +2,9 @@ import abc
 from typing import List
 import logging
 
+from .common import ScenarioError
 from .abstract import AbstractInvestor, AbstractMarketMaker
 from .Clock import Clock
-
-
-class ScenarioError(ValueError):
-    pass
 
 
 class AbstractMarketScenario(abc.ABC):
@@ -45,13 +42,13 @@ class AbstractMarketScenario(abc.ABC):
         pass
 
     def try_associate_market_makers(self, investor: AbstractInvestor):
-        for stock in investor.get_stock_symbols():
+        for symbol in investor.get_stock_symbols():
             found = False
             for market_maker in self.market_makers:
-                if market_maker.trades_in(stock):
-                    investor.register_with(market_maker, stock)
+                if market_maker.trades_in(symbol):
+                    investor.register_participant(market_maker, symbol=symbol)
                     market_maker.register_participant(investor)
                     self.logger.info(f'Registered investor {investor.osid()} with market maker {market_maker.osid()}')
                     found = True
             if not found:
-                raise ScenarioError(f"Can't find a market maker supporting stock {stock}")
+                raise ScenarioError(f"Can't find a market maker supporting stock {symbol}")

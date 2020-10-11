@@ -8,7 +8,30 @@ from .Order import Order, OrderType
 from .Stock import Stock
 
 
-class AbstractInvestor(abc.ABC):
+class AbstractParticipant(abc.ABC):
+    """
+    Abstracting common behaviour of all market participants
+    """
+    @abc.abstractmethod
+    def register_participant(self, other_participant: AbstractParticipant, **kwargs):
+        """
+        register a participant and her portfolio
+        :param other_participant: any other participant
+        :param kwargs: any additional arguments that come with the participant
+        """
+
+    def osid(self) -> str:
+        import os
+        return f'({os.getpid()}-{id(self)})'
+
+    @abc.abstractmethod
+    def get_role(self) -> str:
+        """
+        :return: a string representation of the business role, such as: Investor, Statistician, MarketMaker
+        """
+
+
+class AbstractInvestor(AbstractParticipant):
 
     @abc.abstractmethod
     def get_name(self) -> str:
@@ -33,10 +56,6 @@ class AbstractInvestor(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def register_with(self, market_maker: AbstractMarketMaker, symbol: str):
-        pass
-
-    @abc.abstractmethod
     def report_tx(self, order_type: OrderType, symbol: str, volume: float,
                   price: float, amount: float, clock: Clock):
         pass
@@ -49,9 +68,8 @@ class AbstractInvestor(abc.ABC):
     def get_portfolio(self):
         pass
 
-    @abc.abstractmethod
-    def osid(self) -> str:
-        pass
+    def get_role(self):
+        return "Investor"
 
 
 class AbstractMarket(abc.ABC):
@@ -65,17 +83,10 @@ class AbstractMarket(abc.ABC):
         pass
 
 
-class AbstractMarketMaker(abc.ABC):
+class AbstractMarketMaker(AbstractParticipant):
     """
     The public interface of a MarketMaker
     """
-
-    @abc.abstractmethod
-    def register_participant(self, investor: AbstractInvestor):
-        """
-        register a participant and her portfolio
-        :param investor: the investor
-        """
 
     @abc.abstractmethod
     def submit_orders(self, orders: List[Order], clock: Clock):
@@ -106,11 +117,25 @@ class AbstractMarketMaker(abc.ABC):
         :return: wether or not this market maker trades with this stock
         """
 
+    def get_role(self):
+        return "MarketMaker"
+
+
+class AbstractStatistician(AbstractParticipant):
+    """
+    Refactored all stats collection out of the market maker
+    """
+
     @abc.abstractmethod
-    def osid(self) -> str:
-        """
-        :return: a string consisting of process id and instance id
-        """
+    def get_chart_data(self, **queryargs):
+        pass
+
+    @abc.abstractmethod
+    def report_transaction(self, symbol: str, volume: float, price: float, clock: Clock):
+        pass
+
+    def get_role(self):
+        return "Statistician"
 
 
 class AbstractTradingStrategyFactory(abc.ABC):

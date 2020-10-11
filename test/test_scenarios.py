@@ -43,7 +43,7 @@ class ScenarioTest(TestCase):
                                portfolio={'TSMC': 5000},
                                cash=200_000,
                                strategy_factory=PriceValueStrategyFactory(
-                                   action_threshold=0.01,
+                                   action_threshold=0.01
                                ))
 
         # Michael has a bias as to overestimate the intrinsic value (OK, I know he wouldn't - ever!)
@@ -55,7 +55,7 @@ class ScenarioTest(TestCase):
                                 portfolio={'TSMC': 5000},
                                 cash=200_000,
                                 strategy_factory=PriceValueStrategyFactory(
-                                    action_threshold=0.01,
+                                    action_threshold=0.01
                                 ))
 
         investors = sc.register_investors(warren, michael)

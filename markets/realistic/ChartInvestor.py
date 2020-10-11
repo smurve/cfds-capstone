@@ -32,7 +32,7 @@ class ChartInvestor(AbstractInvestor):
         self.market = market
         self.market_makers: Dict[str, AbstractMarketMaker] = {}
         self.actions: Dict[int, Callable] = self.define_actions()
-        self.debug(f"Starting up. Qualfied Name {self.get_qname()} may not reflect process id on destination host yet.")
+        self.info(f"Starting up. Qualified Name {self.get_qname()} may not reflect process id on destination host yet.")
 
         self.strategy_factory = strategy_factory
         self.strategy: Optional[AbstractTradingStrategy] = None
@@ -77,7 +77,7 @@ class ChartInvestor(AbstractInvestor):
     def get_stock_symbols(self) -> List[str]:
         return list(self.portfolio.keys())
 
-    def register_with(self, market_maker: AbstractMarketMaker, symbol: str):
+    def register_participant(self, market_maker: AbstractMarketMaker, symbol: str):
         self.debug(f"Registering for {symbol} with market maker: {market_maker.osid()}")
         self.market_makers[symbol] = market_maker
 
@@ -123,7 +123,7 @@ class ChartInvestor(AbstractInvestor):
         self.logger.debug(f"{str(self)}: {msg}")
 
     def info(self, msg: str):
-        self.logger.debug(f"{str(self)}: {msg}")
+        self.logger.info(f"{str(self)}: {msg}")
 
     def error(self, msg: str):
         self.logger.error(f"{str(self)}:: {msg}")
@@ -136,7 +136,3 @@ class ChartInvestor(AbstractInvestor):
 
     def get_qname(self):
         return f"{self.name} {self.osid()}"
-
-    def osid(self) -> str:
-        import os
-        return f'({os.getpid()}-{id(self)})'
