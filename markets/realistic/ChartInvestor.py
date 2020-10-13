@@ -100,8 +100,9 @@ class ChartInvestor(AbstractInvestor):
                                                     cash_reserve=self.cash_reserve,
                                                     clock=clock)
 
-        for symbol in self.portfolio.keys():
-            self.market_makers[symbol].submit_orders(orders[symbol], clock)
+        if orders:
+            for symbol in self.portfolio.keys():
+                self.market_makers[symbol].submit_orders(orders[symbol], clock)
 
     def report_tx(self, order_type: OrderType, symbol: str, volume: float,
                   price: float, amount: float, clock: Clock):

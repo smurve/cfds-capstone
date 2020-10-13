@@ -25,7 +25,7 @@ class ScenarioTest(TestCase):
     def get_scenario(clock: Clock) -> AbstractMarketScenario:
         return SynchronousMarketScenario(clock)
 
-    def _test_minimum_ensemble(self):
+    def test_minimum_ensemble(self):
         # TODO: Fix order execution
         np.random.seed(17)
 
@@ -38,7 +38,7 @@ class ScenarioTest(TestCase):
         for i in range(300):
             sc.tick(seconds=1)
 
-        chart = sc.statisticians[0].get_chart_data
+        #  chart = sc.statisticians[0].get_chart_data
 
     def test_scenario(self):
         np.random.seed(17)
