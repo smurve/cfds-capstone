@@ -97,9 +97,6 @@ class MarketMaker(AbstractMarketMaker):
         self.participants[investor.get_qname()] = {'portfolio': portfolio, 'contact': investor}
         self.logger.info(f" {self.osid()}: Registered participant {investor.get_qname()}")
 
-    #
-    #  New
-    #
     def submit_orders(self, orders: List[Order], clock: Clock):
         self.logger.debug(f"[{str(clock)}]: Received {len(orders)} order" + ("s" if len(orders) != 1 else ""))
         for order in orders:
@@ -111,13 +108,13 @@ class MarketMaker(AbstractMarketMaker):
                 self.logger.warning(f"Illegal order: amount is {order.amount}.")
                 self.logger.warning(f"Order: {str(order)} subitted by {order.other_party}")
 
-            candidate = self.find_candidate2(order, clock)
+            candidate = self.find_candidate(order, clock)
             while candidate and order:
-                order_remainder, candidate_remainder = self.process_order2(order, candidate, clock)
+                order_remainder, candidate_remainder = self.process_order(order, candidate, clock)
 
                 if not candidate_remainder:
                     self.remove_candidate_from_order_book(candidate)
-                    candidate = self.find_candidate2(order, clock)
+                    candidate = self.find_candidate(order, clock)
                 else:
                     self.replace_candidate_with_remainder(candidate_remainder)
                     candidate = candidate_remainder
@@ -130,7 +127,7 @@ class MarketMaker(AbstractMarketMaker):
                 else:
                     self.register_order(order)
 
-    def find_candidate2(self, order: Order, clock: Clock) -> Optional[Order]:
+    def find_candidate(self, order: Order, clock: Clock) -> Optional[Order]:
         """
         1) Cleanup 1: While limit candidate expired, replace it with the next in succession
         2) Return eventual candidate if it matches. If not, proceed with 3)
@@ -163,10 +160,7 @@ class MarketMaker(AbstractMarketMaker):
         else:
             self.market_orders[remainder.order_type][remainder.symbol][0] = remainder
 
-    def get_current_limit_candidate(self, order: Order) -> Optional[Order]:
-        return self.candidates[order.order_type.other()].get(order.symbol)
-
-    def process_order2(self, order: Order, candidate: Order, clock: Clock) -> Tuple[Optional[Order], Optional[Order]]:
+    def process_order(self, order: Order, candidate: Order, clock: Clock) -> Tuple[Optional[Order], Optional[Order]]:
         """
         execute the matching part. Return remainder and None - depending on which order was larger
         The return order order Orders reflects the order in the method signatur: candidate last
@@ -215,40 +209,6 @@ class MarketMaker(AbstractMarketMaker):
 
         return None
 
-    #
-    #  Old
-    #
-    def _submit_orders(self, orders: List[Order], clock: Clock):
-        self.logger.debug(f"[{str(clock)}]: Received {len(orders)} order" + ("s" if len(orders) != 1 else ""))
-        for order in orders:
-            symbol = order.symbol
-            if symbol not in self.symbols:
-                raise ValueError(f"Illegal order: symbol {symbol} not traded here.")
-
-            order = deepcopy(order)
-            candidate = self.find_candidate(order, clock)
-            if candidate is None:
-                if order.expires_at <= clock.seconds:
-                    self.participants[order.other_party]['contact'].report_expiry(order)
-                else:
-                    self.register_order(order)
-            else:
-                self.process_order(order, candidate, clock)
-
-    def find_candidate(self, order: Order, clock: Clock) -> Optional[Order]:
-        candidate = self.candidates[order.order_type.other()].get(order.symbol)
-        if candidate and candidate.expires_at >= clock.seconds:
-            return candidate
-        elif candidate:  # There is a candidate, but it's expired
-            self.remove_candidate_from_order_book(candidate)
-            return self.replace_candidate_if_possible(candidate, clock)
-        else:
-            return None
-
-    def remove_expired_orders(self, clock: Clock):
-        self.logger.warning(f'[{str(clock)}] Would Remove expired orders, but that is not implemented yet.')
-        pass
-
     def register_order(self, order: Order):
         order_type, symbol, price = order.order_type, order.symbol, order.price
 
@@ -268,15 +228,6 @@ class MarketMaker(AbstractMarketMaker):
             # market orders are queued separately
             self.market_orders[order_type][symbol].append(order)
 
-    def process_order(self, order: Order, candidate: Order, clock: Clock):
-        done = False
-        while not done:
-            order, done = self.process_order_maybe_partially(order, candidate, clock)
-            if not done:
-                candidate = self.candidates[order.order_type.other()].get(order.symbol)
-                if not candidate:
-                    break
-
     def determine_price(self, bid: Order, ask: Order) -> float:
         if ask.execution_type == ExecutionType.LIMIT:
             return ask.price
@@ -284,85 +235,6 @@ class MarketMaker(AbstractMarketMaker):
             return min(bid.price, self.get_prices()[ask.symbol]['last'])
         else:
             return self.mrtxp[ask.symbol]
-
-    def execute_trade(self, bid: Order, ask: Order, clock: Clock):
-
-        tx_price = self.determine_price(bid, ask)
-        tx_volume = min(ask.amount, bid.amount)
-        bid.amount -= tx_volume
-        ask.amount -= tx_volume
-        self.logger.debug(f'Executing trade: {tx_volume} shares of {bid.symbol} for ${tx_price}')
-        self.execute_transaction(buyer=bid.other_party,
-                                 seller=ask.other_party,
-                                 symbol=bid.symbol,
-                                 volume=tx_volume,
-                                 price=tx_price,
-                                 clock=clock)
-        self.mrtxp[bid.symbol] = tx_price
-
-    def replace_candidate_if_possible(self, candidate: Order, clock: Clock) -> Optional[Order]:
-        symbol = candidate.symbol
-        order_type = candidate.order_type
-        if candidate.execution_type == ExecutionType.LIMIT:
-            # next candidate price is popped from top (lowest_ask) or bottom (highest_bid)
-            prices = sorted(list(self.orders[order_type][symbol].keys()))
-            if len(prices) > 0:
-                pop_index = 0 if order_type == OrderType.ASK else -1
-                new_price = prices[pop_index]
-
-                # pick the least recent order of that price as new candidate
-                new_candidate = self.orders[order_type][symbol][new_price][0]
-                if new_candidate.expires_at >= clock.seconds:
-                    self.candidates[candidate.order_type][symbol] = new_candidate
-                else:
-                    del self.orders[order_type][symbol][new_price][0]
-                    if len(self.orders[order_type][symbol][new_price]) == 0:
-                        del self.orders[order_type][symbol][new_price]
-                    return None
-            else:
-                new_candidate = None
-                self.candidates[candidate.order_type][symbol] = None
-
-            return new_candidate
-        else:
-            potentials = self.market_orders[order_type][symbol]
-            if len(potentials) > 0:
-                new_candidate = potentials[0]  # The least resently registered order
-                self.candidates[candidate.order_type][symbol] = new_candidate
-                return new_candidate
-            else:
-                self.candidates[candidate.order_type][symbol] = None
-                return None
-
-    def find_market_candidate(self, order_type: OrderType, symbol: str) -> Optional[Order]:
-        market_candidates = self.market_orders[order_type][symbol]
-        if market_candidates and len(market_candidates) > 0:
-            return market_candidates[0]
-        return None
-
-    def process_order_maybe_partially(self, order: Order, candidate: Order,
-                                      clock: Clock) -> Tuple[Optional[Order], bool]:
-
-        bid, ask, _ = Order.as_bid_ask(order, candidate)
-        if ask.matches(bid):
-            self.execute_trade(bid, ask, clock)
-        else:
-            candidate = self.find_market_candidate(candidate.order_type, ask.symbol)
-            if candidate:
-                bid, ask, _ = Order.as_bid_ask(order, candidate)
-                self.execute_trade(bid, ask, clock)
-            else:
-                self.register_order(order)
-                return None, True
-
-        if candidate and candidate.amount == 0:
-            self.remove_candidate_from_order_book(candidate)
-            self.replace_candidate_if_possible(candidate, clock)
-
-        if order.amount == 0:
-            return None, True
-        else:
-            return order, False
 
     def remove_candidate_from_order_book(self, order):
         """
