@@ -2,8 +2,9 @@ import abc
 from typing import List
 import logging
 
+from .Ensemble import Ensemble
 from .common import ScenarioError
-from .abstract import AbstractInvestor, AbstractMarketMaker
+from .abstract import AbstractInvestor, AbstractMarketMaker, AbstractStatistician
 from .Clock import Clock
 
 
@@ -13,6 +14,7 @@ class AbstractMarketScenario(abc.ABC):
         self.clock = clock
         self.investors: List[AbstractInvestor] = []
         self.market_makers: List[AbstractMarketMaker] = []
+        self.statisticians: List[AbstractStatistician] = []
         self.logger = logging.getLogger(self.__class__.__name__)
 
     @abc.abstractmethod
@@ -52,3 +54,10 @@ class AbstractMarketScenario(abc.ABC):
                     found = True
             if not found:
                 raise ScenarioError(f"Can't find a market maker supporting stock {symbol}")
+
+    def register_ensemble(self, ensemble: Ensemble):
+        for market_maker, statistician in ensemble.market_makers.items():
+            mm = self.register_market_makers(market_maker)[0]
+            mm.register_participant(statistician)
+            statistician.register_participant(market_maker)
+        self.register_investors(*ensemble.investors)

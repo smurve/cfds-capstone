@@ -65,10 +65,10 @@ class AbstractInvestor(AbstractParticipant):
         pass
 
     @abc.abstractmethod
-    def get_portfolio(self):
+    def get_portfolio(self) -> Dict[str, float]:
         pass
 
-    def get_role(self):
+    def get_role(self) -> str:
         return "Investor"
 
 

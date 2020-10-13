@@ -1,16 +1,30 @@
 from copy import deepcopy
+from typing import List, Dict, Any
 from unittest import TestCase
+from unittest.mock import Mock
 
 from markets.realistic import (Order, OrderType, ExecutionType, Clock,
                                MarketMaker, USITMarket, ChartInvestor, AbstractInvestor)
 from markets.realistic.strategy import PriceValueStrategyFactory
 
+ASK = OrderType.ASK
+BID = OrderType.BID
+LIMIT = ExecutionType.LIMIT
+MARKET = ExecutionType.MARKET
+TSMC = 'TSMC'
+AAPL = 'AAPL'
+
+BUYER1 = 'buyer1'
+BUYER2 = 'buyer2'
+SELLER1 = 'seller1'
+SELLER2 = 'seller2'
+
 
 class MarketMakerTest(TestCase):
 
     def setUp(self) -> None:
-        self.order = Order("anybody", order_type=OrderType.ASK,
-                           execution_type=ExecutionType.LIMIT,
+        self.order = Order("anybody", order_type=ASK,
+                           execution_type=LIMIT,
                            symbol='TSMC', amount=100, price=134, expires_at=10)
         self.symbols = {'TSMC': 100.0, 'NVDA': 200.0}
 
@@ -19,7 +33,8 @@ class MarketMakerTest(TestCase):
         self.strategy_factory = PriceValueStrategyFactory(action_threshold=0.01)
 
     def given_market_maker(self) -> MarketMaker:
-        return MarketMaker(self.market)
+        initial_prices = {stock.name: round(stock.psi(0), 2) for stock in self.market.get_stocks()}
+        return MarketMaker(initial_prices)
 
     def given_order(self, **kwargs):
         order = deepcopy(self.order)
@@ -40,6 +55,67 @@ class MarketMakerTest(TestCase):
                              cash=200_000,
                              strategy_factory=self.strategy_factory)
 
+    def test_matching_scenario(self):
+
+        sell = Order(SELLER1, ASK, LIMIT, TSMC, 100, 135., 300)
+        clock = Clock(initial_seconds=120)
+        # top limit candidate matches, but is expired
+        top_l_exp = Order(BUYER1, BID, LIMIT, TSMC, 100, 136., 60)
+        # next limit candidate no match
+        next_l_no_match = Order(BUYER1, BID, LIMIT, TSMC, 100, 134., 300)
+        # top market candidate epired
+        top_m_exp = Order(BUYER1, BID, MARKET, TSMC, 100, -1., 60)
+        # next market candidate good
+        next_m_good = Order(BUYER1, BID, MARKET, TSMC, 200, -1, 300)
+
+        mm = self.given_market_maker()
+        buyer = Mock(spec=AbstractInvestor)
+        buyer.get_portfolio.return_value = {TSMC: 1000, 'CASH': 200_000}
+        buyer.get_qname.return_value = BUYER1
+        mm.register_participant(buyer)
+        seller = Mock(spec=AbstractInvestor)
+        seller.get_portfolio.return_value = {TSMC: 1000, 'CASH': 200_000}
+        seller.get_qname.return_value = SELLER1
+        mm.register_participant(seller)
+
+        mm.submit_orders([top_l_exp, next_l_no_match, top_m_exp, next_m_good], clock)
+
+        mm.submit_orders([sell], clock)
+
+        self.then_these_orders_are_still_in_the_books(mm, next_l_no_match)
+        self.then_market_candidates_should_contain(mm, Order(BUYER1, BID, MARKET, TSMC, 100, 0, 300))
+        self.then_limit_candidates_should_contain(mm, next_l_no_match)
+        self.then_transaction_should_have_been_executed([{
+            'symbol': 'TSMC',
+            'volume': 100,
+            'price': 135.0,
+            'buyer': buyer,
+            'seller': seller,
+            'clock': clock}])
+
+    def then_these_orders_are_still_in_the_books(self, mm: MarketMaker, *orders):
+        for order in orders:
+            self.assertTrue(order in mm.market_orders[order.order_type][order.symbol] or
+                            order in mm.orders[order.order_type][order.symbol][order.price])
+
+    def then_market_candidates_should_contain(self, mm: MarketMaker, *orders):
+        for order in orders:
+            self.assertTrue(any([order.equivalent(candidate)
+                                 for candidate in mm.market_orders[order.order_type][order.symbol]]))
+
+    def then_limit_candidates_should_contain(self, mm: MarketMaker, *orders):
+        for order in orders:
+            candidate = mm.candidates[BID][order.symbol]
+            self.assertTrue(order.equivalent(candidate))
+
+    @staticmethod
+    def then_transaction_should_have_been_executed(transactions: List[Dict[str, Any]]):
+        for tx in transactions:
+            tx['buyer'].report_tx.assert_called_once_with(BID, tx['symbol'], tx['volume'], tx['price'],
+                                                          tx['volume'] * tx['price'], tx['clock'])
+            tx['seller'].report_tx.assert_called_once_with(ASK, tx['symbol'], tx['volume'], tx['price'],
+                                                           tx['volume'] * tx['price'], tx['clock'])
+
     def test_register_participant_with_unknown_symbol(self):
         unknown_symbol = 'AAPL'
         mm = self.given_market_maker()
@@ -49,21 +125,6 @@ class MarketMakerTest(TestCase):
             self.fail("Should have raised ValueError")
         except ValueError as ve:
             self.assertTrue("Illegal portfolio" in str(ve))
-
-    def test_order_with_unknown_symbol(self):
-        unknown_symbol = 'AAPL'
-        order = self.given_order(symbol=unknown_symbol)
-        mm = self.given_market_maker()
-        try:
-            mm.submit_orders([order], Clock())
-            self.fail("Should have raised ValueError")
-        except ValueError as ve:
-            self.assertTrue("Illegal order" in str(ve))
-        try:
-            mm.submit_orders([order], Clock())
-            self.fail("Should have raised ValueError")
-        except ValueError as ve:
-            self.assertTrue("Illegal order" in str(ve))
 
     def test_initial_ask_and_bid(self):
         for order_type in OrderType:
@@ -370,4 +431,4 @@ class MarketMakerTest(TestCase):
 
         prices = mm.get_prices()
 
-        self.assertEqual(prices['TSMC'], {'bid': 103, 'ask': 116, 'last': 115})
+        self.assertEqual(prices['TSMC'], {'bid': None, 'ask': None, 'last': 115})

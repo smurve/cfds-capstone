@@ -11,6 +11,7 @@ from markets.realistic import (
 from markets.realistic.BiasedMarketView import INTRINSIC_VALUE, BiasedMarketView
 from markets.realistic.Clock import Clock
 from markets.realistic.strategy import PriceValueStrategyFactory
+from markets.realistic.ensembles.minimum import ensemble
 
 
 class ScenarioTest(TestCase):
@@ -24,6 +25,21 @@ class ScenarioTest(TestCase):
     def get_scenario(clock: Clock) -> AbstractMarketScenario:
         return SynchronousMarketScenario(clock)
 
+    def _test_minimum_ensemble(self):
+        # TODO: Fix order execution
+        np.random.seed(17)
+
+        clock = Clock(n_seconds=60, n_minutes=60, n_hours=24, n_days=256)
+
+        sc = self.get_scenario(clock)
+
+        sc.register_ensemble(ensemble)
+
+        for i in range(300):
+            sc.tick(seconds=1)
+
+        chart = sc.statisticians[0].get_chart_data
+
     def test_scenario(self):
         np.random.seed(17)
 
@@ -33,7 +49,9 @@ class ScenarioTest(TestCase):
 
         market = USITMarket({'TSMC': 186.73, 'AAPL': 201.22, 'TSLA': 462.4}, noise=0.)
 
-        market_makers = sc.register_market_makers(MarketMaker(market))
+        initial_prices = {stock.name: round(stock.psi(0), 2) for stock in market.get_stocks()}
+
+        market_makers = sc.register_market_makers(MarketMaker(initial_prices))
         self.assertIsNotNone(market_makers)
 
         biases = {INTRINSIC_VALUE: lambda v: 0.96 * v}
@@ -83,11 +101,11 @@ class ScenarioTest(TestCase):
 
         pass
 
+        # TODO: Introduce reporting from the market maker
         # TODO: Introduce simple Momentum Investors
         # TODO: Investors may create market orders (Retail)
         # TODO: Introduce node- and stock-specific market makers
         # TODO: Introduce stop loss strategy for investors
-        # TODO: Introduce reporting from the market maker
 
 
 @pytest.mark.skipif(reason="tests with ray actors only work in the IDE")

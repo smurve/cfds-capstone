@@ -1,5 +1,6 @@
 from typing import List
 
+from . import Ensemble
 from .AbstractMarketScenario import AbstractMarketScenario
 from .Clock import Clock
 from .abstract import AbstractMarketMaker, AbstractInvestor

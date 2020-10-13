@@ -19,7 +19,8 @@ class OrderExpiryTest(TestCase):
         self.market = USITMarket({'TSMC': 100., 'NVDA': 200.}, noise=0.)
 
     def given_market_maker(self) -> MarketMaker:
-        return MarketMaker(self.market)
+        initial_prices = {stock.name: round(stock.psi(0), 2) for stock in self.market.get_stocks()}
+        return MarketMaker(initial_prices)
 
     def given_order(self, **kwargs):
         order = deepcopy(self.order)
