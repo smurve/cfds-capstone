@@ -80,8 +80,10 @@ class MarketMaker(AbstractMarketMaker):
     def register_participant(self, other_participant: AbstractParticipant):
         if isinstance(other_participant, AbstractInvestor):
             self.register_investor(other_participant)
+            self.logger.info(f"Registered Investor{other_participant.get_qname()}")
         elif isinstance(other_participant, AbstractStatistician):
             self.register_statistician(other_participant)
+            self.logger.info(f"Registered Statistician {other_participant.osid()}")
         else:
             self.logger.error(f"Unknown participant class: {type(other_participant)}")
             raise ScenarioError(f"Unknown participant class: {type(other_participant)}")
@@ -294,6 +296,9 @@ class MarketMaker(AbstractMarketMaker):
         if seller_ref:
             self.logger.debug(f'Reporting sell to {seller_ref.get_qname()}')
             seller_ref.report_tx(OrderType.ASK, symbol, volume, price, volume * price, clock)
+
+        self.logger.debug(f'Reporting tx to statistician:')
+        self.statistician.report_transaction(symbol, volume, price, clock)
 
     def trades_in(self, stock: str) -> bool:
         return stock in self.symbols

@@ -35,9 +35,10 @@ class ScenarioTest(TestCase):
 
         sc.register_ensemble(ensemble)
 
-        for i in range(300):
+        for i in range(0):
             sc.tick(seconds=1)
 
+        pass
         #  chart = sc.statisticians[0].get_chart_data
 
     def test_scenario(self):

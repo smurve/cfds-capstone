@@ -3,6 +3,9 @@ from __future__ import annotations
 import abc
 from typing import List, Dict, Tuple
 
+import datetime as dt
+import pandas as pd
+
 from .Clock import Clock
 from .Order import Order, OrderType
 from .Stock import Stock
@@ -127,7 +130,7 @@ class AbstractStatistician(AbstractParticipant):
     """
 
     @abc.abstractmethod
-    def get_chart_data(self, **queryargs):
+    def get_chart_data(self, symbol: str, date: dt.date) -> pd.Dataframe:
         pass
 
     @abc.abstractmethod

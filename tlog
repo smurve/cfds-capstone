@@ -1,0 +1,1 @@
+echo > /etc/logs/actors.log && tail -f /etc/logs/actors.log

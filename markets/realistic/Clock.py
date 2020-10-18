@@ -19,6 +19,8 @@ class Clock:
         self.n_days = n_days
 
     def time(self) -> Tuple[int, int, int, int, int]:
+        if self.seconds == 0:
+            return 0, 0, 0, 0, 0
         minutes, seconds = divmod(self.seconds, self.n_seconds)
         hours, minutes = divmod(minutes, self.n_minutes)
         days, hours = divmod(hours, self.n_hours)

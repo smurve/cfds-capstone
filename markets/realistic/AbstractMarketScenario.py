@@ -59,5 +59,4 @@ class AbstractMarketScenario(abc.ABC):
         for market_maker, statistician in ensemble.market_makers.items():
             mm = self.register_market_makers(market_maker)[0]
             mm.register_participant(statistician)
-            statistician.register_participant(market_maker)
         self.register_investors(*ensemble.investors)

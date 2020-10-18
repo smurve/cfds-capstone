@@ -12,6 +12,7 @@ from .Clock import Clock
 from .Stock import Stock
 from .BiasedMarketView import BiasedMarketView, INTRINSIC_VALUE
 from .Ensemble import Ensemble
+from .Statistician import Statistician
 
 import os
 import logging.config
