@@ -11,7 +11,7 @@ from markets.realistic import (
 from markets.realistic.BiasedMarketView import INTRINSIC_VALUE, BiasedMarketView
 from markets.realistic.Clock import Clock
 from markets.realistic.strategy import PriceValueStrategyFactory
-from markets.realistic.ensembles.minimum import ensemble
+from markets.realistic.ensembles.minimum import ensemble, _raphi_ as statistician
 
 
 class ScenarioTest(TestCase):
@@ -29,14 +29,16 @@ class ScenarioTest(TestCase):
         # TODO: Fix order execution
         np.random.seed(17)
 
-        clock = Clock(n_seconds=60, n_minutes=60, n_hours=24, n_days=256)
+        clock = Clock(n_seconds=6, n_minutes=60, n_hours=24, n_days=256)
 
         sc = self.get_scenario(clock)
 
         sc.register_ensemble(ensemble)
 
-        for i in range(0):
+        for i in range(360):
             sc.tick(seconds=1)
+
+        data = statistician.get_chart_data('TSMC')
 
         pass
         #  chart = sc.statisticians[0].get_chart_data

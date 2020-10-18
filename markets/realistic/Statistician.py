@@ -2,7 +2,7 @@ import logging
 import datetime as dt
 from collections import defaultdict
 from copy import deepcopy
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import pandas as pd
 
@@ -36,7 +36,11 @@ class Statistician(AbstractStatistician):
                 'Close': None,
                 'Volume': 0.}))
 
-    def get_chart_data(self, symbol: str, date: dt.date) -> pd.DataFrame:
+    def get_chart_data(self, symbol: str, date: Optional[dt.datetime] = None) -> pd.DataFrame:
+
+        if date is None:
+            date = dt.datetime.today()
+
         data = deepcopy(self.minute_data[symbol])
 
         for minute in data:
@@ -49,12 +53,10 @@ class Statistician(AbstractStatistician):
         data = data.set_index(pd.DatetimeIndex(data['Date']))
         data.drop('Date', axis='columns', inplace=True)
 
-        self.logger.debug(f"{self.osid()}: get_chart_data not implemented yet.")
-
         return data
 
     def report_transaction(self, symbol: str, volume: float, price: float, clock: Clock):
-        self.logger.debug(f"{self.osid()}: At {clock}: observing transaction for {symbol}")
+        self.logger.debug(f"{self.osid()}: At {clock}: observing transaction: {price} for {volume} shares of {symbol}")
         _, _, _, minute, second = clock.time()
         record = self.minute_data[symbol][minute]
 

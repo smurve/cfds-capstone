@@ -79,7 +79,9 @@ class TriangularOrderGenerator:
         orders = self.create_orders_df(symbol, p, tau, n, order_type, n_orders)
         orders['expires_at'] = expires_at
         orders['execution_type'] = execution_type
-        return [Order(**order) for order in orders.to_dict('records')]
+        return [
+            Order(**order) for order in orders.to_dict('records')
+            if order['amount'] > 0]
 
     @staticmethod
     def _find_a(p_lower, p_upper):
