@@ -35,6 +35,8 @@ class MarketMaker(AbstractMarketMaker):
         # like {uuid: {'portfolio': {'TSLA': 1200}, 'contact': AbstractInvestor}
         self.participants: Dict[str, Dict[str, Union[AbstractInvestor, Dict[str, float]]]] = {}
 
+        self.statistician = None
+
         self.orders: Dict[OrderType, Dict[str, OrderedDict]] = {}
         self.market_orders: Dict[OrderType, Dict[str, List[Order]]] = {}
         for order_type in OrderType:
@@ -48,6 +50,7 @@ class MarketMaker(AbstractMarketMaker):
             OrderType.BID: {symbol: None for symbol in self.symbols},  # highest bid
             OrderType.ASK: {symbol: None for symbol in self.symbols}  # lowest ask
         }
+
         self.logger.info(f"Starting up. OSID {self.osid()} may not reflect actual host process yet.")
 
     def __repr__(self):
@@ -297,8 +300,9 @@ class MarketMaker(AbstractMarketMaker):
             self.logger.debug(f'Reporting sell to {seller_ref.get_qname()}')
             seller_ref.report_tx(OrderType.ASK, symbol, volume, price, volume * price, clock)
 
-        self.logger.debug(f'Reporting tx to statistician:')
-        self.statistician.report_transaction(symbol, volume, price, clock)
+        if self.statistician:
+            self.logger.debug(f'Reporting tx to statistician:')
+            self.statistician.report_transaction(symbol, volume, price, clock)
 
     def trades_in(self, stock: str) -> bool:
         return stock in self.symbols

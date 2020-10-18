@@ -11,6 +11,10 @@ ray = "==0.8.7"
 jupyter = "*"
 mplfinance = "*"
 finnhub-python="==2.2.1"
+mock = "==4.0.2"
 
 [requires]
 python_version = "3.8"
+
+[pipenv]
+allow_prereleases = true
